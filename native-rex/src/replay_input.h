@@ -35,6 +35,7 @@ class Ben10ReplayInput final : public InputDriver {
     if (!state) return X_ERROR_SUCCESS;
     std::lock_guard guard(command_mutex_);
     std::memset(state,0,sizeof(*state));
+    if(!is_active())return X_ERROR_SUCCESS;
     const auto elapsed=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start_).count();
     uint16_t buttons=0;int16_t ly=0,rx=0,ry=0,lx=0;
     for (const auto& step:steps_) if (elapsed>=step.begin && elapsed<step.end) {

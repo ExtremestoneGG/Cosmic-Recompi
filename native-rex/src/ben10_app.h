@@ -16,12 +16,22 @@
 #include "gpu_frame_capture.h"
 #include "replay_input.h"
 #include "performance_overlay.h"
+#include "pc_menu_bridge.h"
 #include <rex/input/input_system.h>
 #include <rex/system/achievement_manager.h>
 
 class Ben10App : public rex::ReXApp {
  public:
   using rex::ReXApp::ReXApp;
+
+  void OnConfigureFonts(ImFontAtlas* atlas) override {
+    if(!ben10_pc_menu::enabled())return;
+    char windows[MAX_PATH]{};
+    if(GetWindowsDirectoryA(windows,MAX_PATH)) {
+      const auto font=std::filesystem::path(windows)/"Fonts/segoeui.ttf";
+      if(std::filesystem::exists(font))pc_video_font_=atlas->AddFontFromFileTTF(font.string().c_str(),19);
+    }
+  }
 
   void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {
     // Profiling/replay tools keep their own measurements; ordinary play gets
@@ -264,6 +274,19 @@ class Ben10App : public rex::ReXApp {
   }
 
   void OnPostSetup() override {
+    // Presentation/dialogs are created before Runtime. Bind only after setup.
+    if(ben10_pc_menu::enabled()) {
+      ben10_pc_menu::runtime=runtime();
+      ben10_pc_menu::window=window();
+      ben10_pc_video::closed_event=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+      if(!ben10_pc_video::closed_event)throw std::runtime_error("Video menu synchronization unavailable");
+      auto* input=static_cast<rex::input::InputSystem*>(runtime()->input_system());
+      pc_video_menu_=std::make_unique<ben10_pc_video::Dialog>(imgui_drawer(),input,user_data_root(),pc_video_font_);
+      input->SetActiveCallback([this] {
+        if(ben10_pc_video::CapturesGameInput())return ben10_pc_video::polling_ui;
+        return !imgui_drawer()->GetIO().WantCaptureMouse;
+      });
+    }
     if (const char* hidden=std::getenv("BEN10_TEST_HIDDEN")) {
       if (std::string_view(hidden)=="1" && window()) {
         if (auto* handle=window()->GetNativeWindowHandle())
@@ -371,6 +394,12 @@ class Ben10App : public rex::ReXApp {
   }
 
   void OnShutdown() override {
+    ben10_pc_video::visible=false;
+    ben10_pc_video::release_guard=false;
+    if(ben10_pc_video::closed_event)SetEvent(ben10_pc_video::closed_event);
+    pc_video_menu_.reset();
+    ben10_pc_menu::window=nullptr;
+    ben10_pc_menu::runtime=nullptr;
     performance_overlay_.reset();
     if (capture_worker_.joinable()) { capture_worker_.request_stop();capture_worker_.join(); }
   }
@@ -394,6 +423,8 @@ class Ben10App : public rex::ReXApp {
   // void OnShutdown() override {}
   // void OnConfigurePaths(rex::PathConfig& paths) override {}
  private:
+  ImFont* pc_video_font_=nullptr;
+  std::unique_ptr<ben10_pc_video::Dialog> pc_video_menu_;
   std::unique_ptr<Ben10PerformanceOverlay> performance_overlay_;
   std::jthread capture_worker_;
 };

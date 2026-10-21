@@ -1,5 +1,6 @@
 #include "frame_metrics.h"
 #include "frame_pacing_probe.h"
+#include "pc_menu_bridge.h"
 #include <atomic>
 #include <algorithm>
 namespace {
@@ -11,6 +12,7 @@ using Clock=std::chrono::steady_clock;
 Clock::time_point previous{};
 }
 extern "C" void Ben10FrameSubmitted() {
+  ben10_pc_menu::OnFrame();
   ben10_pacing_probe::pacer.Wait();
   const auto now=Clock::now();
   std::lock_guard guard(frame_mutex);

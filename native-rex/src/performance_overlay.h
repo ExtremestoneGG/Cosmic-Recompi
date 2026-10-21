@@ -23,8 +23,8 @@ class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
     const auto flags=ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoInputs|
       ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_AlwaysAutoResize|
       ImGuiWindowFlags_NoFocusOnAppearing|ImGuiWindowFlags_NoNav;
-    if(ImGui::Begin("Desempenho do jogo",nullptr,flags)) {
-      ImGui::Text("FPS do jogo: %.1f",stats_.fps);
+    if(ImGui::Begin("Game performance",nullptr,flags)) {
+      ImGui::Text("Game FPS: %.1f",stats_.fps);
       ImGui::Text("Frame time: %.2f ms | p95: %.2f ms",stats_.latest_ms,stats_.p95_ms);
       if(stats_.count) {
         float maximum=50;
@@ -33,7 +33,7 @@ class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
             0,std::min(maximum,250.0f),ImVec2(300,64));
       }
       ImGui::TextDisabled("30 FPS = 33,3 ms | 60 FPS = 16,7 ms");
-      ImGui::TextDisabled("Quadros do jogo (VdSwap), sem repeticoes da janela");
+      ImGui::TextDisabled("Game frames (VdSwap), excludes repeated window presents");
       if(refreshed) {
         if(const char* path=std::getenv("BEN10_OVERLAY_AUDIT")) {
           const auto pos=ImGui::GetWindowPos(),size=ImGui::GetWindowSize();

@@ -1,6 +1,9 @@
 build/
 data/
 installation/
+installation-path.txt
+temp/
+launcher-preview.png
 originals/
 iso/
 toolchain/

@@ -100,7 +100,7 @@
   "runtime_files": [
     {
       "name": "ben10.exe",
-      "sha256": "ba0ccd93440ff5770aa549fde24eba9759d89f73856525e984eba2b77fc32dd0"
+      "sha256": "ee96d965021fae484b7c34414c8718bd1894e54bd8eb06ca98d09f75cb458a9f"
     },
     {
       "name": "concrt140.dll",
@@ -127,16 +127,16 @@
       "sha256": "8a65c7596ef2e6938731f5a1058e7e40145b6d97967cc649231a076b9a608d78"
     },
     {
+      "name": "pc-menu-api.txt",
+      "sha256": "f1b2f662800122bed0ff255693df89c4487fbdcf453d3524a42d4ec20c3d9c04"
+    },
+    {
       "name": "rexgpu-xenos.dll",
       "sha256": "0045b7feb52e2d6bc038b6b6e0c7258b36cdccdfcf386f4173f6a143204a238e"
     },
     {
       "name": "rexruntime.dll",
       "sha256": "e2af79fff1f17ecc72ba62fbd6059703b91328dcae3c1c936d32aae54ed0475c"
-    },
-    {
-      "name": "SHA256SUMS.txt",
-      "sha256": "71774f9104221aa1564d1bc7672b7432e80a212b5a6fd4d75fa97d7622136951"
     },
     {
       "name": "vccorlib140.dll",
@@ -160,5 +160,26 @@
     "launcher": "Windows .NET Framework C# compiler, x64"
   },
   "generated_game_sources_published": false,
-  "original_game_assets_published": false
+  "original_game_assets_published": false,
+  "frontend": {
+    "origin": "https://github.com/ExtremestoneGG/recomp-ui.git",
+    "commit": "047bc82d8679e96d1dec19ce2cd8ab677003465f",
+    "components": [
+      "Dear ImGui core and SDL3/OpenGL3 backends",
+      "src/common/launcher_gl.c and headers",
+      "stb_image.h"
+    ],
+    "game_assets_included": false
+  },
+  "frontend_files": [
+    {
+      "name": "CosmicRecomp.exe",
+      "sha256": "9c82a03d0457f8495c47d0e980af4807248dba3585a1591f126791cfe0ac84fc"
+    },
+    {
+      "name": "CosmicBridge.exe",
+      "sha256": "6f9072a5ab49e61cba7fff36197624b47071531bb0343a96eaa464ea3298390c"
+    }
+  ],
+  "release": "v0.2.0-test.1"
 }
