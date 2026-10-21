@@ -1,0 +1,2256 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9b3cdf5..c1d1b31 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -129,6 +129,11 @@ if(NOT WIN32)
+ endif()
+ 
+ # Global compile options
++# Local clang-cl driver adaptation (tools/patch_rex_sdk.py).
++if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
++    add_compile_options(/clang:-fno-strict-aliasing /clang:-ffp-model=strict
++        /clang:-fno-char8_t $<$<CONFIG:Release>:/clang:-O3>)
++else()
+ add_compile_options(
+     -fno-strict-aliasing
+     -ffp-model=strict
+@@ -138,6 +143,7 @@ add_compile_options(
+     $<$<CONFIG:RELEASE>:-DNDEBUG>
+     -fno-char8_t
+ )
++endif()
+ 
+ # Platform detection (supports AMD64 and ARM64)
+ set(REX_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")
+diff --git a/include/rex/graphics/d3d12/render_target_cache.h b/include/rex/graphics/d3d12/render_target_cache.h
+index cd7693a..d0162b4 100644
+--- a/include/rex/graphics/d3d12/render_target_cache.h
++++ b/include/rex/graphics/d3d12/render_target_cache.h
+@@ -81,6 +81,19 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
+ 
+   // For host render targets.
+ 
++  // Nonvirtual helper: no change to class layout or exported plugin ABI.
++  void GetBoundRenderTargetDimensions(uint32_t& width,uint32_t& height) const {
++    width=D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
++    height=D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
++    for (uint32_t i=0;i<1+xenos::kMaxColorRenderTargets;++i) {
++      const auto* target=last_update_accumulated_render_targets()[i];
++      if (!target) continue;
++      const auto key=target->key();
++      width=std::min(width,key.GetWidth()*draw_resolution_scale_x());
++      height=std::min(height,GetRenderTargetHeight(key.pitch_tiles_at_32bpp,key.msaa_samples)*draw_resolution_scale_y());
++    }
++  }
++
+   bool gamma_render_target_as_unorm16() const { return gamma_render_target_as_unorm16_; }
+ 
+   // Using R16G16[B16A16]_SNORM, which are -1...1, not the needed -32...32.
+@@ -186,6 +199,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
+   };
+   static const ResolveCopyShaderCode
+       kResolveCopyShaders[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
++  Microsoft::WRL::ComPtr<ID3D12PipelineState> ben10_direct_resolve_pipeline_;
++  bool ben10_direct_resolve_attempted_=false;
+   ID3D12PipelineState* resolve_copy_pipelines_[size_t(draw_util::ResolveCopyShaderIndex::kCount)] =
+       {};
+ 
+diff --git a/include/rex/graphics/d3d12/shared_memory.h b/include/rex/graphics/d3d12/shared_memory.h
+index 5100818..11d2007 100644
+--- a/include/rex/graphics/d3d12/shared_memory.h
++++ b/include/rex/graphics/d3d12/shared_memory.h
+@@ -21,6 +21,8 @@
+ #include <rex/ui/d3d12/d3d12_api.h>
+ #include <rex/ui/d3d12/d3d12_upload_buffer_pool.h>
+ 
++namespace ben10_profile { class UploadAudit; }
++
+ namespace rex::graphics::d3d12 {
+ 
+ class D3D12CommandProcessor;
+@@ -83,6 +85,9 @@ class D3D12SharedMemory : public SharedMemory {
+ 
+  private:
+   D3D12CommandProcessor& command_processor_;
++  std::unique_ptr<ben10_profile::UploadAudit> ben10_upload_audit_;
++  GlobalWatchHandle ben10_upload_watch_=nullptr;
++  bool ben10_reuse_uploads_=false;
+ 
+   // The 512 MB tiled buffer.
+   ID3D12Resource* buffer_ = nullptr;
+diff --git a/include/rex/graphics/pipeline/shader/dxbc_translator.h b/include/rex/graphics/pipeline/shader/dxbc_translator.h
+index 3b0fd61..dc90a79 100644
+--- a/include/rex/graphics/pipeline/shader/dxbc_translator.h
++++ b/include/rex/graphics/pipeline/shader/dxbc_translator.h
+@@ -111,7 +111,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
+     // If anything in this is structure is changed in a way not compatible with
+     // the previous layout, invalidate the pipeline storages by increasing this
+     // version number (0xYYYYMMDD)!
+-    static constexpr uint32_t kVersion = 0x20260226;
++    static constexpr uint32_t kVersion = 0x20261020;
+ 
+     enum class DepthStencilMode : uint32_t {
+       kNoModifiers,
+@@ -176,8 +176,81 @@ class DxbcShaderTranslator : public ShaderTranslator {
+       uint32_t dynamic_addressable_register_count : 8;
+       // Non-ROV - depth / stencil output mode.
+       DepthStencilMode depth_stencil_mode : 2;
++      // Base-nine blend states, four RTs: generic, identity, seven known modes.
++      uint32_t rov_blend_state_codes : 13;
++      // Zero: dynamic. Nonzero: exact format shared by all shader-written RTs.
++      uint32_t rov_color_format_mode : 3;
+     } pixel;
+ 
++    // No operations or factors are changed. These are the exact packed values
++    // passed to the original shader's existing blend implementation.
++    inline static constexpr uint32_t kKnownRovBlends[8] = {
++        0, 0x07060706, 0x07010706, 0x01010101,
++        0x01060106, 0x01010106, 0x000A0008, 0x00010706};
++
++    inline static constexpr uint32_t kRovBlendPowers[4] = {1, 9, 81, 729};
++    // Exact AddPSIColorFormatFlags values; checked against the SDK in tests.
++    inline static constexpr uint32_t kRovColorFormatFlags[8] = {
++        0, 96, 97, 6, 23, 14, 31, 98};
++    // Packed (compare function << 1) | eligible-early-write hint.
++    inline static constexpr uint32_t kRovDepthControls[9] = {0,7,6,3,15,14,5,9,13};
++    static uint32_t ClassifyRovDepthControl(uint32_t compare, bool early) {
++      const uint32_t packed=(compare<<1)|uint32_t(early);
++      for (uint32_t mode=1;mode<9;++mode)
++        if (kRovDepthControls[mode]==packed) return mode;
++      return 0;
++    }
++    uint32_t GetRovBlendState(uint32_t rt) const {
++      return (pixel.rov_blend_state_codes / kRovBlendPowers[rt]) % 9;
++    }
++    void SetRovBlendState(uint32_t rt, uint32_t state) {
++      assert_true(rt < 4 && state < 9);
++      pixel.rov_blend_state_codes = pixel.rov_blend_state_codes
++          - GetRovBlendState(rt) * kRovBlendPowers[rt] + state * kRovBlendPowers[rt];
++    }
++
++    void SetRovDepthFacts(uint32_t written, bool no_stencil, uint32_t depth_format_mode,
++                          uint32_t control_mode=0, bool alpha_one_fast=false) {
++      assert_true(depth_format_mode < 3 && control_mode < 9);
++      uint32_t unused_index=0;
++      for (uint32_t rt=0;rt<4;++rt) {
++        if (written & (1u<<rt)) continue;
++        SetRovBlendState(rt, unused_index==0 ? (uint32_t(no_stencil) | (alpha_one_fast ? 2u : 0u))
++                            : unused_index==1 ? depth_format_mode
++                            : unused_index==2 ? control_mode : 0);
++        ++unused_index;
++      }
++    }
++    bool GetRovNoStencil(uint32_t written) const {
++      for (uint32_t rt=0;rt<4;++rt)
++        if (!(written & (1u<<rt))) return (GetRovBlendState(rt)&1)!=0;
++      return false;
++    }
++    bool GetRovAlphaOneFastPath(uint32_t written, uint32_t rt) const {
++      if (!(written & (1u<<rt)) || pixel.rov_color_format_mode!=1) return false;
++      const uint32_t state=GetRovBlendState(rt);
++      if (state!=2 && state!=3) return false;
++      for (uint32_t unused=0;unused<4;++unused)
++        if (!(written & (1u<<unused))) return (GetRovBlendState(unused)&2)!=0;
++      return false;
++    }
++    uint32_t GetRovDepthControlMode(uint32_t written) const {
++      uint32_t unused_index=0;
++      for (uint32_t rt=0;rt<4;++rt) {
++        if (written & (1u<<rt)) continue;
++        if (unused_index++==2) return GetRovBlendState(rt);
++      }
++      return 0;
++    }
++    uint32_t GetRovDepthFormatMode(uint32_t written) const {
++      uint32_t unused_index=0;
++      for (uint32_t rt=0;rt<4;++rt) {
++        if (written & (1u<<rt)) continue;
++        if (unused_index++==1) return GetRovBlendState(rt);
++      }
++      return 0;
++    }
++
+     explicit Modification(uint64_t modification_value = 0) : value(modification_value) {
+       static_assert_size(*this, sizeof(value));
+     }
+@@ -626,6 +699,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
+                              std::min(((swizzle >> 6) & 3) + first_component, uint32_t(3)) << 6);
+   }
+   dxbc::Src LoadSystemConstant(SystemConstants::Index index, size_t offset, uint32_t swizzle) {
++    if (edram_rov_used_ && is_pixel_shader() &&
++        index == SystemConstants::Index::kEdramRTFormatFlags) {
++      const uint32_t mode = GetDxbcShaderModification().pixel.rov_color_format_mode;
++      if (mode) return dxbc::Src::LU(Modification::kRovColorFormatFlags[mode]);
++    }
+     MarkSystemConstantUsed(index);
+     return GetSystemConstantSrc(offset, swizzle);
+   }
+@@ -638,6 +716,41 @@ class DxbcShaderTranslator : public ShaderTranslator {
+     return Modification(current_translation().modification());
+   }
+ 
++  dxbc::Src LoadRovStencilFlag() {
++    if (edram_rov_used_ && is_pixel_shader() && !is_depth_only_pixel_shader_ &&
++        GetDxbcShaderModification().GetRovNoStencil(current_shader().writes_color_targets())) {
++      return dxbc::Src::LU(0);
++    }
++    return LoadFlagsSystemConstant();
++  }
++  dxbc::Src LoadDepthFormatFlag() {
++    if (edram_rov_used_ && is_pixel_shader() && !is_depth_only_pixel_shader_) {
++      const uint32_t mode=GetDxbcShaderModification().GetRovDepthFormatMode(
++          current_shader().writes_color_targets());
++      if (mode) return dxbc::Src::LU(mode==2 ? kSysFlag_DepthFloat24 : 0);
++    }
++    return LoadFlagsSystemConstant();
++  }
++
++  uint32_t GetRovDepthControlMode() const {
++    if (!edram_rov_used_ || !is_pixel_shader() || is_depth_only_pixel_shader_) return 0;
++    return GetDxbcShaderModification().GetRovDepthControlMode(current_shader().writes_color_targets());
++  }
++  dxbc::Src LoadRovDepthPassFlags() {
++    const uint32_t mode=GetRovDepthControlMode();
++    if (mode) return dxbc::Src::LU((Modification::kRovDepthControls[mode]>>1)
++                                  << kSysFlag_ROVDepthPassIfLess_Shift);
++    return LoadFlagsSystemConstant();
++  }
++  // Used only inside the enabled-depth/stencil conditional. If color aliases
++  // depth, that outer condition is false and this hint is never consumed.
++  dxbc::Src LoadRovEarlyWriteFlag() {
++    const uint32_t mode=GetRovDepthControlMode();
++    if (mode) return dxbc::Src::LU((Modification::kRovDepthControls[mode]&1)
++                                  ? kSysFlag_ROVDepthStencilEarlyWrite : 0);
++    return LoadFlagsSystemConstant();
++  }
++
+   bool IsDxbcVertexShader() const {
+     return is_vertex_shader() && !Shader::IsHostVertexShaderTypeDomain(
+                                      GetDxbcShaderModification().vertex.host_vertex_shader_type);
+@@ -705,6 +818,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
+   }
+   // Whether it's possible and worth skipping running the translated shader for
+   // 2x2 quads.
++  // Only called for ROV. These bits are otherwise exclusively DSV modifiers.
++  uint32_t GetRovSampleCountForTranslation() const {
++    assert_true(edram_rov_used_);
++    const uint32_t mode = uint32_t(GetDxbcShaderModification().pixel.depth_stencil_mode);
++    return mode ? (1u << (mode - 1)) : 4u;
++  }
++
+   bool ROV_IsDepthStencilEarly() const {
+     assert_true(edram_rov_used_);
+     return !is_depth_only_pixel_shader_ && !current_shader().writes_depth() &&
+diff --git a/include/rex/ui/imgui_dialog.h b/include/rex/ui/imgui_dialog.h
+index a7ab6b3..0aa41d0 100644
+--- a/include/rex/ui/imgui_dialog.h
++++ b/include/rex/ui/imgui_dialog.h
+@@ -39,6 +39,11 @@ class ImGuiDialog {
+ 
+   void Draw();
+ 
++  // UI-thread scheduling only; event-driven dialogs can remain registered
++  // without forcing an otherwise unchanged guest image to be presented again.
++  virtual bool NeedsContinuousRepaint() { return true; }
++  void RequestRepaintFromUIThread() { imgui_drawer_->RequestRepaintFromUIThread(); }
++
+  protected:
+   ImGuiDialog(ImGuiDrawer* imgui_drawer);
+ 
+diff --git a/include/rex/ui/imgui_drawer.h b/include/rex/ui/imgui_drawer.h
+index a570fa0..d90436d 100644
+--- a/include/rex/ui/imgui_drawer.h
++++ b/include/rex/ui/imgui_drawer.h
+@@ -47,6 +47,9 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
+ 
+   void AddDialog(ImGuiDialog* dialog);
+   void RemoveDialog(ImGuiDialog* dialog);
++  void RequestRepaintFromUIThread() {
++    if (presenter_) presenter_->RequestUIPaintFromUIThread();
++  }
+ 
+   // Whether Draw would render anything, so a caller that has to marshal to the
+   // UI thread can skip the round trip entirely.
+diff --git a/include/rex/ui/overlay/achievement_toast.h b/include/rex/ui/overlay/achievement_toast.h
+index 7642601..b3c043d 100644
+--- a/include/rex/ui/overlay/achievement_toast.h
++++ b/include/rex/ui/overlay/achievement_toast.h
+@@ -34,6 +34,7 @@ class AchievementToastDialog : public AchievementNotificationDialog {
+ 
+   // Thread-safe: safe to call from any thread, including guest threads.
+   void Push(const rex::system::AchievementEvent& event) override;
++  bool NeedsContinuousRepaint() override;
+ 
+  protected:
+   void OnDraw(ImGuiIO& io) override;
+diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
+index 19874a5..5786604 100644
+--- a/src/graphics/d3d12/command_processor.cpp
++++ b/src/graphics/d3d12/command_processor.cpp
+@@ -15,6 +15,12 @@
+ #include <sstream>
+ #include <utility>
+ 
++#include "D:/Ben 10 recomp/native-rex/src/d3d12_profile.h"
++#include "D:/Ben 10 recomp/native-rex/src/barrier_batch_audit.h"
++#include "D:/Ben 10 recomp/native-rex/src/d3d12_draw_profile.h"
++#include "D:/Ben 10 recomp/native-rex/src/rtv_stencil_audit.h"
++#include "D:/Ben 10 recomp/native-rex/src/d3d12_work_profile.h"
++#include "D:/Ben 10 recomp/native-rex/src/camera_motion_audit.h"
+ #include <rex/assert.h>
+ #include <rex/cvar.h>
+ #include <rex/dbg.h>
+@@ -47,6 +53,13 @@ REXCVAR_DEFINE_BOOL(d3d12_submit_on_primary_buffer_end, true, "GPU/D3D12",
+                     "Submit command list when PM4 primary buffer ends")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
++REXCVAR_DEFINE_BOOL(d3d12_intel_viewport_workaround, false, "GPU/D3D12",
++                    "Diagnostic: clamp RTV viewport to attachment dimensions with NDC correction");
++
++REXCVAR_DEFINE_BOOL(d3d12_rov_raw_edram, false, "GPU/D3D12",
++                    "Experimental ROV byte-address EDRAM, preserving word/OOB semantics")
++    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++
+ namespace rex::graphics::d3d12 {
+ 
+ // Generated with `xb buildshaders`.
+@@ -256,6 +269,7 @@ void D3D12CommandProcessor::PushUAVBarrier(ID3D12Resource* resource) {
+ void D3D12CommandProcessor::SubmitBarriers() {
+   UINT barrier_count = UINT(barriers_.size());
+   if (barrier_count != 0) {
++    ben10_profile::barrier_batch_audit.Record(barriers_);
+     deferred_command_list_.D3DResourceBarrier(barrier_count, barriers_.data());
+     barriers_.clear();
+   }
+@@ -1118,7 +1132,8 @@ bool D3D12CommandProcessor::SetupContext() {
+         range.NumDescriptors = 1;
+         range.BaseShaderRegister = UINT(DxbcShaderTranslator::UAVRegister::kEdram);
+         range.RegisterSpace = 0;
+-        range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kEdramR32UintUAV);
++        range.OffsetInDescriptorsFromTableStart = UINT(REXCVAR_GET(d3d12_rov_raw_edram)
++            ? SystemBindlessView::kEdramRawUAV : SystemBindlessView::kEdramR32UintUAV);
+       }
+       // Used UAV and SRV ranges must not overlap on Nvidia Fermi, so textures
+       // have OffsetInDescriptorsFromTableStart after all static descriptors of
+@@ -1342,6 +1357,13 @@ bool D3D12CommandProcessor::SetupContext() {
+     return false;
+   }
+ 
++  // Diagnostic names distinguish final gamma conversion from texture loading.
++  // No shader, dispatch, or rendering state is changed.
++  apply_gamma_table_pipeline_->SetName(L"Present Gamma Table");
++  apply_gamma_table_fxaa_luma_pipeline_->SetName(L"Present Gamma Table FXAA Luma");
++  apply_gamma_pwl_pipeline_->SetName(L"Present Gamma PWL");
++  apply_gamma_pwl_fxaa_luma_pipeline_->SetName(L"Present Gamma PWL FXAA Luma");
++
+   // Initialize compute pipelines for post-processing anti-aliasing.
+   D3D12_ROOT_PARAMETER fxaa_root_parameters[UINT(FxaaRootParameter::kCount)];
+   {
+@@ -1628,6 +1650,10 @@ bool D3D12CommandProcessor::SetupContext() {
+ 
+ void D3D12CommandProcessor::ShutdownContext() {
+   AwaitAllQueueOperationsCompletion();
++  ben10_profile::draw_profile.Shutdown(submission_fence_);
++  ben10_profile::work_profile.Shutdown(submission_fence_->GetCompletedValue());
++  ben10_profile::profile.Shutdown();
++  ben10_camera_audit::audit.Flush();
+   InvalidateAllVertexBufferResidency();
+   ShutdownOcclusionQueryResources();
+ 
+@@ -1893,6 +1919,7 @@ void D3D12CommandProcessor::OnGammaRampPWLValueWritten() {
+ 
+ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
+                                       uint32_t frontbuffer_height) {
++  ben10_profile::profile.Frame(frontbuffer_width,frontbuffer_height,submission_fence_);
+   SCOPE_profile_cpu_f("gpu");
+   vertex_buffers_in_sync_[0] = 0;
+   vertex_buffers_in_sync_[1] = 0;
+@@ -2271,6 +2298,12 @@ Shader* D3D12CommandProcessor::LoadShader(xenos::ShaderType shader_type, uint32_
+ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint32_t index_count,
+                                       IndexBufferInfo* index_buffer_info,
+                                       bool major_mode_explicit) {
++  ben10_profile::Scope ben10_draw_scope(ben10_profile::Draw);
++  if (ben10_profile::profile.output) {
++    ++ben10_profile::profile.draws;
++    const auto samples=uint32_t(register_file_->Get<reg::RB_SURFACE_INFO>().msaa_samples);
++    if (samples<3) ++ben10_profile::profile.msaa[samples];
++  }
+ #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
+   SCOPE_profile_cpu_f("gpu");
+ #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
+@@ -2359,6 +2392,23 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+           ? pipeline_cache_->GetCurrentPixelShaderModification(
+                 *pixel_shader, interpolator_mask, ps_param_gen_pos, normalized_depth_control)
+           : DxbcShaderTranslator::Modification(0);
++  if (ben10_profile::profile.output) {
++    ++ben10_profile::profile.rov_format_candidates[
++        pixel_shader_modification.pixel.rov_color_format_mode];
++    if (pixel_shader_modification.pixel.rov_color_format_mode==7 &&
++        (pixel_shader_modification.pixel.rov_blend_state_codes & 4096))
++      ++ben10_profile::profile.rtv_zero_lod_candidates;
++    const uint32_t ben10_written=pixel_shader ? pixel_shader->writes_color_targets() : 15;
++    ++ben10_profile::profile.rov_depth_candidates[
++        uint32_t(pixel_shader_modification.GetRovNoStencil(ben10_written)) |
++        (pixel_shader_modification.GetRovDepthFormatMode(ben10_written) ? 2u : 0u)];
++    ++ben10_profile::profile.rov_depth_control_candidates[
++        pixel_shader_modification.GetRovDepthControlMode(ben10_written)];
++    bool ben10_alpha_candidate=false;
++    for (uint32_t rt=0;rt<4;++rt)
++      ben10_alpha_candidate |= pixel_shader_modification.GetRovAlphaOneFastPath(ben10_written,rt);
++    ++ben10_profile::profile.rov_alpha_candidates[uint32_t(ben10_alpha_candidate)];
++  }
+ 
+   // Set up the render targets - this may perform dispatches and draws.
+   uint32_t normalized_color_mask =
+@@ -2409,6 +2459,23 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+       (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMaskAfterTranslation() : 0);
+   texture_cache_->RequestTextures(used_texture_mask);
+ 
++  // Verify specialization against the actual bindings, not just fetch metadata.
++  if (host_render_targets_used && pixel_shader &&
++      pixel_shader_modification.pixel.rov_color_format_mode==7) {
++    uint32_t remaining=pixel_shader->GetUsedTextureMaskAfterTranslation(), index;
++    while (rex::bit_scan_forward(remaining,&index)) {
++      remaining &= ~(uint32_t(1)<<index);
++      if (texture_cache_->GetActiveTextureSwizzledSigns(index)!=0)
++        throw std::runtime_error("RTV unsigned texture specialization binding mismatch");
++      if ((pixel_shader_modification.pixel.rov_blend_state_codes & 4096) &&
++          regs.GetTextureFetch(index).lod_bias!=0)
++        throw std::runtime_error("RTV zero LOD specialization binding mismatch");
++      if ((pixel_shader_modification.pixel.rov_blend_state_codes & 2048) &&
++          regs.GetTextureFetch(index).exp_adjust!=0)
++        throw std::runtime_error("RTV zero exponent specialization binding mismatch");
++    }
++  }
++
+   // Bind the pipeline after configuring it and doing everything that may bind
+   // other pipelines.
+   if (current_guest_pipeline_ != pipeline_handle) {
+@@ -2439,12 +2506,19 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+   viewport_key.flags = (uint32_t(convert_z_to_float24) << 0) |
+                        (uint32_t(host_render_targets_used) << 1) | (uint32_t(ps_writes_depth) << 2);
+ 
++  const bool ben10_clip_viewport=host_render_targets_used &&
++      REXCVAR_GET(d3d12_intel_viewport_workaround);
++  uint32_t ben10_viewport_width=D3D12_VIEWPORT_BOUNDS_MAX;
++  uint32_t ben10_viewport_height=D3D12_VIEWPORT_BOUNDS_MAX;
++  if (ben10_clip_viewport)
++    render_target_cache_->GetBoundRenderTargetDimensions(ben10_viewport_width,ben10_viewport_height);
+   draw_util::ViewportInfo viewport_info;
+-  if (viewport_cache_valid_ && viewport_key == previous_viewport_key_) {
++  // Attachment dimensions are not part of the original cache key.
++  if (!ben10_clip_viewport && viewport_cache_valid_ && viewport_key == previous_viewport_key_) {
+     viewport_info = previous_viewport_info_;
+   } else {
+     draw_util::GetHostViewportInfo(regs, draw_resolution_scale_x, draw_resolution_scale_y, true,
+-                                   D3D12_VIEWPORT_BOUNDS_MAX, D3D12_VIEWPORT_BOUNDS_MAX, false,
++                                   float(ben10_viewport_width), float(ben10_viewport_height), false,
+                                    normalized_depth_control, convert_z_to_float24,
+                                    host_render_targets_used, ps_writes_depth, viewport_info);
+     previous_viewport_key_ = viewport_key;
+@@ -2460,6 +2534,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+   scissor.extent[1] *= draw_resolution_scale_y;
+ 
+   // Update viewport, scissor, blend factor and stencil reference.
++  ben10_camera_audit::audit.Observe(
++      frame_current_, vertex_shader->ucode_data_hash(), viewport_info.xy_offset,
++      viewport_info.xy_extent, viewport_info.ndc_scale, viewport_info.ndc_offset,
++      &regs[XE_GPU_REG_SHADER_CONSTANT_000_X]);
+   UpdateFixedFunctionState(viewport_info, scissor, primitive_polygonal, normalized_depth_control);
+ 
+   // Update system constants before uploading them.
+@@ -2617,6 +2695,18 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+   SetPrimitiveTopology(primitive_topology);
+   // Must not call anything that may change the primitive topology from now on!
+ 
++  if (ben10_profile::rtv_stencil_audit.output && host_render_targets_used) {
++    const auto sc=regs.Get<reg::PA_SU_SC_MODE_CNTL>();
++    const bool eligible=is_rasterization_done && primitive_polygonal &&
++        normalized_depth_control.stencil_enable && normalized_depth_control.backface_enable &&
++        !sc.cull_front && !sc.cull_back;
++    ben10_profile::rtv_stencil_audit.Observe(frame_current_,eligible,
++        normalized_depth_control.value,regs.Get<reg::RB_STENCILREFMASK>().value,
++        regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF).value,sc.value,
++        vertex_shader->ucode_data_hash(),pixel_shader ? pixel_shader->ucode_data_hash() : 0,
++        primitive_processing_result.host_draw_vertex_count);
++  }
++
+   // Draw.
+   if (primitive_processing_result.index_buffer_type ==
+       PrimitiveProcessor::ProcessedIndexBufferType::kNone) {
+@@ -2628,8 +2718,38 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+     SubmitBarriers();
+     PROFILE_DRAW_CALL();
+     PROFILE_VERTICES(primitive_processing_result.host_draw_vertex_count);
++    const int ben10_draw_query=ben10_profile::draw_profile.Begin(
++        deferred_command_list_,device,GetD3D12Provider().GetDirectQueue(),
++        submission_fence_,submission_current_,vertex_shader->ucode_data_hash(),
++        pixel_shader ? pixel_shader->ucode_data_hash() : 0,
++        primitive_processing_result.host_draw_vertex_count,
++        uint32_t(regs.Get<reg::RB_SURFACE_INFO>().msaa_samples));
++    if (ben10_draw_query>=0) {
++      auto& sample=ben10_profile::draw_profile.samples[size_t(ben10_draw_query)];
++      sample.pixel_modification=pixel_shader_modification.value;
++      sample.color_mask=normalized_color_mask;
++      sample.depth_control=normalized_depth_control.value;
++      sample.depth_format=uint32_t(regs.Get<reg::RB_DEPTH_INFO>().depth_format);
++      sample.written_targets=pixel_shader ? pixel_shader->writes_color_targets() : 0;
++      // Diagnostic-only raw state identifies distinct draws sharing shader hashes.
++      sample.draw_state={regs[XE_GPU_REG_RB_SURFACE_INFO],
++          regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL],
++          regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL],regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR],
++          regs[XE_GPU_REG_RB_DEPTH_INFO],regs[XE_GPU_REG_RB_COLOR_INFO],
++          regs[XE_GPU_REG_PA_CL_VPORT_XSCALE],regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET],
++          regs[XE_GPU_REG_PA_CL_VPORT_YSCALE],regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET],
++          regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE],regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET],
++          regs.GetTextureFetch(0).base_address,regs.GetTextureFetch(2).base_address,
++          regs.GetTextureFetch(14).base_address};
++      for (uint32_t rt=0;rt<4;++rt) {
++        sample.blend_controls[rt]=regs[reg::RB_BLENDCONTROL::rt_register_indices[rt]] & 0x1FFF1FFF;
++        sample.color_formats[rt]=uint32_t(regs.Get<reg::RB_COLOR_INFO>(
++            reg::RB_COLOR_INFO::rt_register_indices[rt]).color_format);
++      }
++    }
+     deferred_command_list_.D3DDrawInstanced(primitive_processing_result.host_draw_vertex_count, 1,
+                                             0, 0);
++    ben10_profile::draw_profile.End(deferred_command_list_,ben10_draw_query);
+   } else {
+     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+     index_buffer_view.SizeInBytes = primitive_processing_result.host_draw_vertex_count;
+@@ -2687,8 +2807,38 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+     SubmitBarriers();
+     PROFILE_DRAW_CALL();
+     PROFILE_VERTICES(primitive_processing_result.host_draw_vertex_count);
++    const int ben10_draw_query=ben10_profile::draw_profile.Begin(
++        deferred_command_list_,device,GetD3D12Provider().GetDirectQueue(),
++        submission_fence_,submission_current_,vertex_shader->ucode_data_hash(),
++        pixel_shader ? pixel_shader->ucode_data_hash() : 0,
++        primitive_processing_result.host_draw_vertex_count,
++        uint32_t(regs.Get<reg::RB_SURFACE_INFO>().msaa_samples));
++    if (ben10_draw_query>=0) {
++      auto& sample=ben10_profile::draw_profile.samples[size_t(ben10_draw_query)];
++      sample.pixel_modification=pixel_shader_modification.value;
++      sample.color_mask=normalized_color_mask;
++      sample.depth_control=normalized_depth_control.value;
++      sample.depth_format=uint32_t(regs.Get<reg::RB_DEPTH_INFO>().depth_format);
++      sample.written_targets=pixel_shader ? pixel_shader->writes_color_targets() : 0;
++      // Diagnostic-only raw state identifies distinct draws sharing shader hashes.
++      sample.draw_state={regs[XE_GPU_REG_RB_SURFACE_INFO],
++          regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL],
++          regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL],regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR],
++          regs[XE_GPU_REG_RB_DEPTH_INFO],regs[XE_GPU_REG_RB_COLOR_INFO],
++          regs[XE_GPU_REG_PA_CL_VPORT_XSCALE],regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET],
++          regs[XE_GPU_REG_PA_CL_VPORT_YSCALE],regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET],
++          regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE],regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET],
++          regs.GetTextureFetch(0).base_address,regs.GetTextureFetch(2).base_address,
++          regs.GetTextureFetch(14).base_address};
++      for (uint32_t rt=0;rt<4;++rt) {
++        sample.blend_controls[rt]=regs[reg::RB_BLENDCONTROL::rt_register_indices[rt]] & 0x1FFF1FFF;
++        sample.color_formats[rt]=uint32_t(regs.Get<reg::RB_COLOR_INFO>(
++            reg::RB_COLOR_INFO::rt_register_indices[rt]).color_format);
++      }
++    }
+     deferred_command_list_.D3DDrawIndexedInstanced(
+         primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
++    ben10_profile::draw_profile.End(deferred_command_list_,ben10_draw_query);
+     if (scratch_index_buffer != nullptr) {
+       ReleaseScratchGPUBuffer(scratch_index_buffer, D3D12_RESOURCE_STATE_INDEX_BUFFER);
+     }
+@@ -3118,7 +3268,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
+                     SUCCEEDED(queue_operations_since_submission_fence_->SetEventOnCompletion(
+                         fence_value, fence_completion_event_)))) {
+         PROFILE_CMD_BUFFER_STALL();
+-        WaitForSingleObject(fence_completion_event_, INFINITE);
++        { ben10_profile::Scope ben10_wait_scope(ben10_profile::FenceWait); WaitForSingleObject(fence_completion_event_, INFINITE); }
+         queue_operations_done_since_submission_signal_ = false;
+       } else {
+         REXGPU_ERROR(
+@@ -3137,7 +3287,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
+     if (SUCCEEDED(
+             submission_fence_->SetEventOnCompletion(await_submission, fence_completion_event_))) {
+       PROFILE_CMD_BUFFER_STALL();
+-      WaitForSingleObject(fence_completion_event_, INFINITE);
++      { ben10_profile::Scope ben10_wait_scope(ben10_profile::FenceWait); WaitForSingleObject(fence_completion_event_, INFINITE); }
+       submission_completed_ = submission_fence_->GetCompletedValue();
+     }
+   }
+@@ -3372,6 +3522,7 @@ bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
+ }
+ 
+ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
++  ben10_profile::Scope ben10_submit_scope(ben10_profile::Submit);
+   const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();
+ 
+   // Make sure there is a command allocator to write commands to.
+@@ -3425,7 +3576,9 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
+         command_allocator_writable_first_->command_allocator;
+     command_allocator->Reset();
+     command_list_->Reset(command_allocator, nullptr);
++    const int ben10_query=ben10_profile::profile.BeginGpu(provider.GetDevice(),direct_queue,command_list_,submission_fence_,submission_current_);
+     deferred_command_list_.Execute(command_list_, command_list_1_);
++    ben10_profile::profile.EndGpu(command_list_,ben10_query);
+     command_list_->Close();
+     ID3D12CommandList* execute_command_lists[] = {command_list_};
+     direct_queue->ExecuteCommandLists(1, execute_command_lists);
+@@ -4538,7 +4691,10 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+       view_cpu_handle.ptr += descriptor_size_view;
+       view_gpu_handle.ptr += descriptor_size_view;
+       if (edram_rov_used) {
+-        render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle, 2);
++        if (REXCVAR_GET(d3d12_rov_raw_edram))
++          render_target_cache_->WriteEdramRawUAVDescriptor(view_cpu_handle);
++        else
++          render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle, 2);
+         view_cpu_handle.ptr += descriptor_size_view;
+         view_gpu_handle.ptr += descriptor_size_view;
+       }
+@@ -4551,7 +4707,10 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+       view_cpu_handle.ptr += descriptor_size_view;
+       view_gpu_handle.ptr += descriptor_size_view;
+       if (edram_rov_used) {
+-        render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle, 2);
++        if (REXCVAR_GET(d3d12_rov_raw_edram))
++          render_target_cache_->WriteEdramRawUAVDescriptor(view_cpu_handle);
++        else
++          render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle, 2);
+         view_cpu_handle.ptr += descriptor_size_view;
+         view_gpu_handle.ptr += descriptor_size_view;
+       }
+diff --git a/src/graphics/d3d12/deferred_command_list.cpp b/src/graphics/d3d12/deferred_command_list.cpp
+index e6d6277..a0b24de 100644
+--- a/src/graphics/d3d12/deferred_command_list.cpp
++++ b/src/graphics/d3d12/deferred_command_list.cpp
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include "D:/Ben 10 recomp/native-rex/src/d3d12_work_profile.h"
+ #include <rex/assert.h>
+ #include <rex/dbg.h>
+ #include <rex/graphics/d3d12/command_processor.h>
+@@ -36,10 +37,74 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
+   const uintmax_t* stream = command_stream_.data();
+   size_t stream_remaining = command_stream_.size();
+   ID3D12PipelineState* current_pipeline_state = nullptr;
++  // Diagnostic-only cache scoped to Execute so released/reused resource pointers
++  // cannot retain a heap classification across command lists.
++  std::map<ID3D12Resource*, D3D12_HEAP_TYPE> diagnostic_heap_types;
++  auto diagnostic_heap_type = [&](ID3D12Resource* resource) {
++    auto found=diagnostic_heap_types.find(resource);
++    if (found!=diagnostic_heap_types.end()) return found->second;
++    D3D12_HEAP_PROPERTIES properties{};
++    const auto type=SUCCEEDED(resource->GetHeapProperties(&properties,nullptr))
++        ? properties.Type : D3D12_HEAP_TYPE_CUSTOM;
++    diagnostic_heap_types.emplace(resource,type);
++    return type;
++  };
+   while (stream_remaining != 0) {
+     const CommandHeader& header = *reinterpret_cast<const CommandHeader*>(stream);
+     stream += kCommandHeaderSizeElements;
+     stream_remaining -= kCommandHeaderSizeElements;
++    if (ben10_profile::work_profile.output) {
++      UINT kind=0;
++      uint64_t diagnostic_copy_bytes=0;
++      switch (header.command) {
++        case Command::kD3DDrawInstanced:
++        case Command::kD3DDrawIndexedInstanced: kind=1;break;
++        case Command::kD3DDispatch: kind=2;break;
++        // Split diagnostic copy categories without changing any GPU operation.
++        case Command::kD3DCopyBufferRegion: {
++          const auto& args=*reinterpret_cast<const D3DCopyBufferRegionArguments*>(stream);
++          diagnostic_copy_bytes=args.num_bytes;
++          if (diagnostic_heap_type(args.src_buffer)==D3D12_HEAP_TYPE_UPLOAD) kind=8;
++          else if (diagnostic_heap_type(args.dst_buffer)==D3D12_HEAP_TYPE_READBACK) kind=9;
++          else kind=10;
++        } break;
++        case Command::kD3DCopyResource: kind=6;break;
++        case Command::kD3DResourceBarrier: {
++          if (!ben10_profile::work_profile.profile_barriers) break;
++          const UINT count=*reinterpret_cast<const UINT*>(stream);
++          const auto* barriers=reinterpret_cast<const D3D12_RESOURCE_BARRIER*>(
++              reinterpret_cast<const uint8_t*>(stream)+
++              rex::align(sizeof(UINT),alignof(D3D12_RESOURCE_BARRIER)));
++          UINT category=0;
++          for(UINT i=0;i<count;++i) {
++            UINT item=11;
++            if(barriers[i].Type==D3D12_RESOURCE_BARRIER_TYPE_UAV) item=12;
++            else if(barriers[i].Type==D3D12_RESOURCE_BARRIER_TYPE_ALIASING) item=16;
++            else if(barriers[i].Type==D3D12_RESOURCE_BARRIER_TYPE_TRANSITION) {
++              item=barriers[i].Transition.pResource->GetDesc().Dimension==
++                  D3D12_RESOURCE_DIMENSION_BUFFER ? 13 : 14;
++            }
++            if(!category)category=item;
++            else if(category!=item)category=15;
++          }
++          kind=category?category:11;
++        } break;
++        case Command::kCopyTexture:
++        case Command::kD3DCopyTextureRegion: kind=7;break;
++        case Command::kD3DClearDepthStencilView:
++        case Command::kD3DClearRenderTargetView:
++        case Command::kD3DClearUnorderedAccessViewUint: kind=4;break;
++        default:break;
++      }
++      if (kind && (kind>2 || current_pipeline_state!=nullptr)) {
++        auto& provider=command_processor_.GetD3D12Provider();
++        ben10_profile::work_profile.Mark(command_list,provider.GetDevice(),
++            provider.GetDirectQueue(),command_processor_.GetCompletedSubmission(),
++            command_processor_.GetCurrentSubmission(),kind,
++            kind<=2 ? uint64_t(reinterpret_cast<uintptr_t>(current_pipeline_state)) : 0,
++            diagnostic_copy_bytes);
++      }
++    }
+     switch (header.command) {
+       case Command::kD3DClearDepthStencilView: {
+         auto& args = *reinterpret_cast<const ClearDepthStencilViewHeader*>(stream);
+@@ -275,6 +340,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
+     stream += header.arguments_size_elements;
+     stream_remaining -= header.arguments_size_elements;
+   }
++  if (ben10_profile::work_profile.output) ben10_profile::work_profile.End(command_list);
+ }
+ 
+ void* DeferredCommandList::WriteCommand(Command command, size_t arguments_size_bytes) {
+diff --git a/src/graphics/d3d12/pipeline_cache.cpp b/src/graphics/d3d12/pipeline_cache.cpp
+index 8e6b854..fa30e4b 100644
+--- a/src/graphics/d3d12/pipeline_cache.cpp
++++ b/src/graphics/d3d12/pipeline_cache.cpp
+@@ -36,6 +36,7 @@
+ #include <rex/graphics/flags.h>
+ #include <rex/graphics/format/dxbc.h>
+ #include <rex/graphics/pipeline_util.h>
++#include <rex/graphics/pipeline/texture/util.h>
+ #include <rex/graphics/pipeline/shader/dxbc_translator.h>
+ #include <rex/graphics/registers.h>
+ #include <rex/graphics/util/draw.h>
+@@ -62,6 +63,44 @@ REXCVAR_DEFINE_INT32(d3d12_pipeline_creation_threads, -1, "GPU/D3D12",
+ REXCVAR_DEFINE_BOOL(d3d12_tessellation_wireframe, false, "GPU/D3D12",
+                     "Render tessellation as wireframe");
+ 
++REXCVAR_DEFINE_BOOL(d3d12_intel_stencil_always_workaround, false, "GPU/D3D12",
++                    "Diagnostic: equivalent zero-mask EQUAL for two ALWAYS stencil faces");
++
++REXCVAR_DEFINE_BOOL(d3d12_rov_static_blend, false, "GPU/D3D12",
++                    "Specialize exact identity blending in ROV shader keys");
++
++REXCVAR_DEFINE_BOOL(d3d12_rov_static_common_blends, false, "GPU/D3D12",
++                    "Specialize exact common blend states in ROV shader keys");
++
++REXCVAR_DEFINE_BOOL(d3d12_rov_static_samples, false, "GPU/D3D12",
++                    "Specialize exact guest MSAA sample count in ROV shader keys");
++
++REXCVAR_DEFINE_BOOL(d3d12_rov_static_formats, false, "GPU/D3D12",
++                    "Specialize exact common color formats of all written ROV targets");
++
++REXCVAR_DEFINE_BOOL(d3d12_rov_static_depth, false, "GPU/D3D12",
++                    "Specialize proven no-stencil and exact depth-format facts in ROV");
++
++REXCVAR_DEFINE_BOOL(d3d12_rov_static_depth_control, false, "GPU/D3D12",
++                    "Specialize exact ROV depth compare and eligible early-write hint");
++
++REXCVAR_DEFINE_BOOL(d3d12_rov_alpha_one_fastpath, false, "GPU/D3D12",
++                    "Exact alpha-one path for proven source-alpha blends on linear RGBA8");
++
++bool& FLAGS_d3d12_rov_raw_edram_storage_();
++
++REXCVAR_DEFINE_BOOL(d3d12_rtv_unsigned_textures, false, "GPU/D3D12",
++                    "Specialize RTV texture signs only when all referenced fetches are unsigned")
++    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++
++REXCVAR_DEFINE_BOOL(d3d12_rtv_zero_lod_bias, false, "GPU/D3D12",
++                    "Specialize only proven zero fetch LOD bias in unsigned RTV shaders")
++    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++
++REXCVAR_DEFINE_BOOL(d3d12_rtv_zero_exponent, false, "GPU/D3D12",
++                    "Specialize proven zero fetch exponent in unsigned RTV shaders")
++    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++
+ namespace rex::graphics::d3d12 {
+ 
+ // Generated with `xb buildshaders`.
+@@ -223,6 +262,10 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
+   ShutdownShaderStorage();
+ 
+   auto shader_storage_root = cache_root / "shaders";
++  if (REXCVAR_GET(d3d12_rtv_zero_exponent)) shader_storage_root /= "rtv-zero-exponent-v1";
++  if (REXCVAR_GET(d3d12_rtv_zero_lod_bias)) shader_storage_root /= "rtv-zero-lod-v1";
++  if (REXCVAR_GET(d3d12_rtv_unsigned_textures)) shader_storage_root /= "rtv-unsigned-v2-branchless";
++  if (REXCVAR_GET(d3d12_rov_raw_edram)) shader_storage_root /= "rov-raw-edram-v1";
+   // For files that can be moved between different hosts.
+   // Host PSO blobs - if ever added - should be stored in shaders/local/ (they
+   // currently aren't used because because they may be not very practical -
+@@ -874,6 +917,31 @@ DxbcShaderTranslator::Modification PipelineCache::GetCurrentPixelShaderModificat
+   }
+ 
+   if (render_target_cache_.GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
++    if (REXCVAR_GET(d3d12_rtv_unsigned_textures) && !shader.texture_bindings().empty()) {
++      bool all_unsigned=true;
++      bool zero_exponent=REXCVAR_GET(d3d12_rtv_zero_exponent);
++      bool zero_lod=REXCVAR_GET(d3d12_rtv_zero_lod_bias);
++      uint32_t checked=0;
++      for (const auto& binding : shader.texture_bindings()) {
++        const uint32_t bit=uint32_t(1)<<binding.fetch_constant;
++        if (checked & bit) continue;
++        checked |= bit;
++        const auto fetch=regs.GetTextureFetch(binding.fetch_constant);
++        zero_lod = zero_lod && fetch.lod_bias==0;
++        zero_exponent = zero_exponent && fetch.exp_adjust==0;
++        if (fetch.type != xenos::FetchConstantType::kTexture ||
++            texture_util::SwizzleSigns(fetch) != 0) { all_unsigned=false; break; }
++      }
++      assert_true(modification.pixel.rov_color_format_mode==0);
++      if (all_unsigned) {
++        modification.pixel.rov_color_format_mode=7;
++        // ROV blend state bits are unused for RTV. A distinct key keeps the
++        // original dynamic shader available when any fetch changes.
++        assert_true(modification.pixel.rov_blend_state_codes==0);
++        if (zero_lod) modification.pixel.rov_blend_state_codes=4096;
++        if (zero_exponent) modification.pixel.rov_blend_state_codes |= 2048;
++      }
++    }
+     using DepthStencilMode = DxbcShaderTranslator::Modification::DepthStencilMode;
+     if (render_target_cache_.depth_float24_convert_in_pixel_shader() &&
+         normalized_depth_control.z_enable &&
+@@ -892,6 +960,82 @@ DxbcShaderTranslator::Modification PipelineCache::GetCurrentPixelShaderModificat
+     }
+   }
+ 
++  if (render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock &&
++      REXCVAR_GET(d3d12_rov_static_samples)) {
++    const uint32_t samples_log2 = uint32_t(regs.Get<reg::RB_SURFACE_INFO>().msaa_samples);
++    if (samples_log2 <= 2) {
++      modification.pixel.depth_stencil_mode =
++          DxbcShaderTranslator::Modification::DepthStencilMode(1 + samples_log2);
++    }
++  }
++
++  if (render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock &&
++      REXCVAR_GET(d3d12_rov_static_blend)) {
++    for (uint32_t i=0;i<xenos::kMaxColorRenderTargets;++i) {
++      // Must match the exact value uploaded to edram_rt_blend_factors_ops.
++      const uint32_t blend=regs[reg::RB_BLENDCONTROL::rt_register_indices[i]] & 0x1FFF1FFF;
++      if (blend==0x00010001) modification.SetRovBlendState(i,1);
++      else if (REXCVAR_GET(d3d12_rov_static_common_blends)) {
++        for (uint32_t mode=1;mode<8;++mode) {
++          if (blend==DxbcShaderTranslator::Modification::kKnownRovBlends[mode]) {
++            modification.SetRovBlendState(i,mode+1);
++            break;
++          }
++        }
++      }
++    }
++  }
++
++  if (render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock &&
++      REXCVAR_GET(d3d12_rov_static_formats) && shader.writes_color_targets()) {
++    for (uint32_t mode=1;mode<8;++mode) {
++      bool exact=true;
++      for (uint32_t rt=0;rt<4;++rt) {
++        if (!(shader.writes_color_targets() & (1u<<rt))) continue;
++        const auto info=regs.Get<reg::RB_COLOR_INFO>(reg::RB_COLOR_INFO::rt_register_indices[rt]);
++        if (RenderTargetCache::AddPSIColorFormatFlags(info.color_format) !=
++            DxbcShaderTranslator::Modification::kRovColorFormatFlags[mode]) {
++          exact=false;
++          break;
++        }
++      }
++      if (exact) {
++        modification.pixel.rov_color_format_mode=mode;
++        break;
++      }
++    }
++  }
++
++  if (render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock) {
++    const bool specialize=REXCVAR_GET(d3d12_rov_static_depth);
++    const auto depth_format=regs.Get<reg::RB_DEPTH_INFO>().depth_format;
++    // The actual stencil flag can only be cleared by depth/color aliasing;
++    // a false normalized stencil enable is therefore a sufficient proof.
++    const bool no_stencil=specialize && !normalized_depth_control.stencil_enable;
++    const uint32_t format_mode=!specialize ? 0
++        : depth_format==xenos::DepthRenderTargetFormat::kD24S8 ? 1
++        : depth_format==xenos::DepthRenderTargetFormat::kD24FS8 ? 2 : 0;
++    uint32_t control_mode=0;
++    if (REXCVAR_GET(d3d12_rov_static_depth_control)) {
++      const auto color=regs.Get<reg::RB_COLORCONTROL>();
++      const bool alpha_always=!color.alpha_test_enable || color.alpha_func==xenos::CompareFunction::kAlways;
++      const bool early=alpha_always && !color.alpha_to_mask_enable;
++      const uint32_t compare=normalized_depth_control.z_enable
++          ? uint32_t(normalized_depth_control.zfunc) : uint32_t(xenos::CompareFunction::kAlways);
++      control_mode=DxbcShaderTranslator::Modification::ClassifyRovDepthControl(compare,early);
++    }
++    bool alpha_one_fast=false;
++    if (REXCVAR_GET(d3d12_rov_alpha_one_fastpath) && modification.pixel.rov_color_format_mode==1) {
++      for (uint32_t rt=0;rt<4;++rt) {
++        if (!(shader.writes_color_targets() & (1u<<rt))) continue;
++        const uint32_t state=modification.GetRovBlendState(rt);
++        if (state==2 || state==3) alpha_one_fast=true;
++      }
++    }
++    modification.SetRovDepthFacts(shader.writes_color_targets(),no_stencil,format_mode,
++                                  control_mode,alpha_one_fast);
++  }
++
+   return modification;
+ }
+ 
+@@ -2955,6 +3099,17 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
+           uint32_t(D3D12_STENCIL_OP_KEEP) + uint32_t(description.stencil_back_pass_op));
+       state_desc.DepthStencilState.BackFace.StencilFunc = D3D12_COMPARISON_FUNC(
+           uint32_t(D3D12_COMPARISON_FUNC_NEVER) + uint32_t(description.stencil_back_func));
++      // ALWAYS passes for both faces regardless of reference or stored value.
++      // EQUAL with read mask zero also compares 0 == 0, preserving the original
++      // write mask, reference and all stencil operations (including REPLACE).
++      // Keep opt-in until visual and gameplay verification on Intel.
++      if (REXCVAR_GET(d3d12_intel_stencil_always_workaround) &&
++          state_desc.DepthStencilState.FrontFace.StencilFunc == D3D12_COMPARISON_FUNC_ALWAYS &&
++          state_desc.DepthStencilState.BackFace.StencilFunc == D3D12_COMPARISON_FUNC_ALWAYS) {
++        state_desc.DepthStencilState.StencilReadMask = 0;
++        state_desc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
++        state_desc.DepthStencilState.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
++      }
+     }
+     if (state_desc.DepthStencilState.DepthEnable || state_desc.DepthStencilState.StencilEnable) {
+       state_desc.DSVFormat =
+diff --git a/src/graphics/d3d12/render_target_cache.cpp b/src/graphics/d3d12/render_target_cache.cpp
+index dd321a5..8b12f46 100644
+--- a/src/graphics/d3d12/render_target_cache.cpp
++++ b/src/graphics/d3d12/render_target_cache.cpp
+@@ -21,6 +21,10 @@
+ #include <tuple>
+ #include <utility>
+ 
++#include "D:/Ben 10 recomp/native-rex/src/resolve_layout_audit.h"
++#include "D:/Ben 10 recomp/native-rex/src/depth_clear_audit.h"
++#include "D:/Ben 10 recomp/native-rex/src/d3d12_profile.h"
++#include <cstring>
+ #include <rex/assert.h>
+ #include <rex/cvar.h>
+ #include <rex/graphics/d3d12/command_processor.h>
+@@ -47,6 +51,23 @@ REXCVAR_DEFINE_STRING(render_target_path_d3d12, "", "GPU/D3D12",
+ 
+ REXCVAR_DEFINE_BOOL(native_stencil_value_output, true, "GPU", "Enable native stencil value output");
+ 
++bool& FLAGS_d3d12_intel_stencil_always_workaround_storage_();
++
++bool& FLAGS_d3d12_intel_viewport_workaround_storage_();
++
++REXCVAR_DEFINE_BOOL(d3d12_rtv_initial_depth_zero, false, "GPU/D3D12",
++                    "Diagnostic: explicitly zero fresh unowned D24S8 surface metadata")
++    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++
++
++
++namespace ben10_direct_resolve_shaders {
++#include "D:/Ben 10 recomp/data/analysis/shader-candidates/direct-resolve/direct-resolve.h"
++}
++REXCVAR_DEFINE_BOOL(d3d12_exact_direct_resolve, false, "GPU/D3D12",
++                    "Exact single-owner RGBA8 1x source-image resolve with generic fallback")
++    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++
+ namespace rex::graphics::d3d12 {
+ 
+ // Generated with `xb buildshaders`.
+@@ -1026,6 +1047,8 @@ void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
+   descriptor_pool_depth_.reset();
+   descriptor_pool_color_.reset();
+ 
++  ben10_direct_resolve_pipeline_.Reset();
++  ben10_direct_resolve_attempted_=false;
+   for (size_t i = 0; i < rex::countof(resolve_copy_pipelines_); ++i) {
+     ui::d3d12::util::ReleaseAndNull(resolve_copy_pipelines_[i]);
+   }
+@@ -1191,12 +1214,83 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+         resolve_info.GetCopyShader(draw_resolution_scale_x(), draw_resolution_scale_y(),
+                                    copy_shader_constants, copy_group_count_x, copy_group_count_y);
+     assert_true(copy_group_count_x && copy_group_count_y);
++    if (ben10_profile::resolve_layout_audit.output && GetPath()==Path::kHostRenderTargets) {
++      const auto source=resolve_info.IsCopyingDepth() ? resolve_info.depth_edram_info : resolve_info.color_edram_info;
++      uint32_t dest_info, dest_coordinates;
++      static_assert(sizeof(resolve_info.copy_dest_info)==sizeof(dest_info));
++      static_assert(sizeof(resolve_info.copy_dest_coordinate_info)==sizeof(dest_coordinates));
++      std::memcpy(&dest_info,&resolve_info.copy_dest_info,sizeof(dest_info));
++      std::memcpy(&dest_coordinates,&resolve_info.copy_dest_coordinate_info,sizeof(dest_coordinates));
++      uint32_t base,row_length,rows,pitch;
++      resolve_info.GetCopyEdramTileSpan(base,row_length,rows,pitch);
++      std::vector<ResolveCopyDumpRectangle> observed;
++      GetResolveCopyRectanglesToDump(base,row_length,rows,pitch,observed);
++      const auto record=[&](const ResolveCopyDumpRectangle* rectangle) {
++        ben10_profile::resolve_layout_audit.Record({uint32_t(copy_shader),uint32_t(resolve_info.coordinate_info.width_div_8)*8u,
++          resolve_info.height_div_8*8,uint32_t(source.is_depth),uint32_t(source.format),uint32_t(source.msaa_samples),
++          source.pitch_tiles,source.base_tiles,dest_info,dest_coordinates,resolve_info.coordinate_info.packed,
++          resolve_info.copy_dest_base,resolve_info.copy_dest_extent_start,resolve_info.copy_dest_extent_length,
++          uint32_t(draw_resolution_scaled),uint32_t(observed.size()),
++          rectangle ? rectangle->render_target->key().key : UINT32_MAX,
++          rectangle ? rectangle->row_first : 0,rectangle ? rectangle->rows : 0,
++          rectangle ? rectangle->row_first_start : 0,rectangle ? rectangle->row_last_end : 0,
++          copy_group_count_x,copy_group_count_y});
++      };
++      if(observed.empty())record(nullptr);
++      else for(const auto& rectangle:observed)record(&rectangle);
++    }
++
+     if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
+       const draw_util::ResolveCopyShaderInfo& copy_shader_info =
+           draw_util::resolve_copy_shader_info[size_t(copy_shader)];
+-      bool direct_resolved = false;
++      D3D12RenderTarget* ben10_direct_source=nullptr;
++      // Each invocation proves the full specialization domain. Ownership and
++      // surface identity may change even within the same frame.
++      if(REXCVAR_GET(d3d12_exact_direct_resolve) && GetPath()==Path::kHostRenderTargets &&
++          !draw_resolution_scaled && copy_shader==draw_util::ResolveCopyShaderIndex::kFast32bpp1x2xMSAA &&
++          !resolve_info.IsCopyingDepth() && resolve_info.color_edram_info.format==0 &&
++          resolve_info.color_edram_info.msaa_samples==xenos::MsaaSamples::k1X &&
++          resolve_info.coordinate_info.edram_offset_x_div_8==0 &&
++          resolve_info.coordinate_info.edram_offset_y_div_8==0 &&
++          !resolve_info.copy_dest_info.copy_dest_array && !resolve_info.copy_dest_info.copy_dest_exp_bias &&
++          uint32_t(resolve_info.copy_dest_info.copy_dest_format)==6 &&
++          resolve_info.copy_dest_coordinate_info.copy_sample_select==xenos::CopySampleSelect::k0 &&
++          (uint32_t(resolve_info.copy_dest_info.copy_dest_endian)==0 ||
++           uint32_t(resolve_info.copy_dest_info.copy_dest_endian)==2)) {
++        uint32_t base,row_length,rows,pitch;
++        resolve_info.GetCopyEdramTileSpan(base,row_length,rows,pitch);
++        std::vector<ResolveCopyDumpRectangle> owners;
++        GetResolveCopyRectanglesToDump(base,row_length,rows,pitch,owners);
++        if(owners.size()==1 && rows && row_length && pitch &&
++            uint64_t(base)+uint64_t(rows-1)*pitch+row_length<=xenos::kEdramTileCount) {
++          const auto& rectangle=owners[0];
++          auto* source=static_cast<D3D12RenderTarget*>(rectangle.render_target);
++          const auto key=source->key();
++          const auto desc=source->resource()->GetDesc();
++          if(!key.is_depth && key.resource_format==0 && key.msaa_samples==xenos::MsaaSamples::k1X &&
++              key.base_tiles==base && base==resolve_info.color_edram_info.base_tiles &&
++              key.GetPitchTiles()==pitch && rectangle.row_first==0 && rectangle.rows==rows &&
++              rectangle.row_first_start==0 && rectangle.row_last_end==row_length &&
++              desc.Dimension==D3D12_RESOURCE_DIMENSION_TEXTURE2D && desc.SampleDesc.Count==1 &&
++              desc.DepthOrArraySize==1 && desc.Width>=uint32_t(resolve_info.coordinate_info.width_div_8)*8u &&
++              desc.Height>=resolve_info.height_div_8*8u) {
++            if(!ben10_direct_resolve_attempted_) {
++              ben10_direct_resolve_attempted_=true;
++              *ben10_direct_resolve_pipeline_.ReleaseAndGetAddressOf()=ui::d3d12::util::CreateComputePipeline(
++                  command_processor_.GetD3D12Provider().GetDevice(),
++                  ben10_direct_resolve_shaders::ben10_direct_resolve_rgba8_1x,
++                  sizeof(ben10_direct_resolve_shaders::ben10_direct_resolve_rgba8_1x),resolve_copy_root_signature_);
++              if(ben10_direct_resolve_pipeline_)
++                ben10_direct_resolve_pipeline_->SetName(L"Resolve Direct exact RGBA8 1x");
++              else REXGPU_WARN("Exact direct resolve unavailable; generic resolve retained");
++            }
++            if(ben10_direct_resolve_pipeline_)ben10_direct_source=source;
++          }
++        }
++      }
++      bool direct_resolved = ben10_direct_source!=nullptr;
+       if (GetPath() == Path::kHostRenderTargets) {
+-        if (REXCVAR_GET(direct_host_resolve)) {
++        if (!ben10_direct_source && REXCVAR_GET(direct_host_resolve)) {
+           direct_resolved =
+               TryResolveCopyDirectly(resolve_info, copy_shader, draw_resolution_scaled);
+           if (direct_resolved) {
+@@ -1247,7 +1341,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+         ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_source;
+         ui::d3d12::util::DescriptorCpuGpuHandlePair descriptors[2];
+         if (command_processor_.RequestOneUseSingleViewDescriptors(
+-                bindless_resources_used_ ? uint32_t(draw_resolution_scaled) : 2, descriptors)) {
++                bindless_resources_used_ ? uint32_t(draw_resolution_scaled || ben10_direct_source) : 2, descriptors)) {
+           if (bindless_resources_used_) {
+             if (draw_resolution_scaled) {
+               descriptor_dest = descriptors[0];
+@@ -1255,7 +1349,12 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+               descriptor_dest = command_processor_.GetSharedMemoryUintPow2BindlessUAVHandlePair(
+                   copy_shader_info.dest_bpe_log2);
+             }
+-            if (copy_shader_info.source_is_raw) {
++            if (ben10_direct_source) {
++              descriptor_source=descriptors[0];
++              command_processor_.GetD3D12Provider().GetDevice()->CopyDescriptorsSimple(1,
++                  descriptor_source.first,ben10_direct_source->descriptor_srv().GetHandle(),
++                  D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
++            } else if (copy_shader_info.source_is_raw) {
+               descriptor_source = command_processor_.GetSystemBindlessViewHandlePair(
+                   D3D12CommandProcessor::SystemBindlessView::kEdramRawSRV);
+             } else {
+@@ -1269,7 +1368,11 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+                                                        copy_shader_info.dest_bpe_log2);
+             }
+             descriptor_source = descriptors[1];
+-            if (copy_shader_info.source_is_raw) {
++            if (ben10_direct_source) {
++              command_processor_.GetD3D12Provider().GetDevice()->CopyDescriptorsSimple(1,
++                  descriptor_source.first,ben10_direct_source->descriptor_srv().GetHandle(),
++                  D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
++            } else if (copy_shader_info.source_is_raw) {
+               WriteEdramRawSRVDescriptor(descriptor_source.first);
+             } else {
+               WriteEdramUintPow2SRVDescriptor(descriptor_source.first,
+@@ -1284,7 +1387,11 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+           } else {
+             shared_memory.UseForWriting();
+           }
+-          TransitionEdramBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
++          if(ben10_direct_source) {
++            command_processor_.PushTransitionBarrier(ben10_direct_source->resource(),
++                ben10_direct_source->SetResourceState(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
++                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
++          } else TransitionEdramBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+ 
+           // Submit the resolve.
+           command_list.D3DSetComputeRootSignature(resolve_copy_root_signature_);
+@@ -1298,9 +1405,10 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+             command_list.D3DSetComputeRoot32BitConstants(
+                 0, sizeof(copy_shader_constants) / sizeof(uint32_t), &copy_shader_constants, 0);
+           }
+-          command_processor_.SetExternalPipeline(resolve_copy_pipelines_[size_t(copy_shader)]);
++          command_processor_.SetExternalPipeline(ben10_direct_source ? ben10_direct_resolve_pipeline_.Get() : resolve_copy_pipelines_[size_t(copy_shader)]);
+           command_processor_.SubmitBarriers();
+           command_list.D3DDispatch(copy_group_count_x, copy_group_count_y, 1);
++          if(ben10_direct_source && ben10_profile::profile.output)++ben10_profile::profile.direct_resolve_copies;
+ 
+           // Order the resolve with other work using the destination as a UAV.
+           if (draw_resolution_scaled) {
+@@ -1663,6 +1771,17 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(Rend
+       stencil_srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
+     }
+     device->CreateDepthStencilView(resource.Get(), &dsv_desc, descriptor_draw_handle);
++    if (REXCVAR_GET(d3d12_rtv_initial_depth_zero) &&
++        key.GetDepthFormat()==xenos::DepthRenderTargetFormat::kD24S8) {
++      // Fresh resource, initial state DEPTH_WRITE, no EDRAM ownership yet.
++      // Use zero, matching the SDK's requested zeroed allocation. The normal
++      // guest ownership transfer/clear follows and retains all valid contents.
++      command_processor_.SubmitBarriers();
++      command_processor_.GetDeferredCommandList().D3DClearDepthStencilView(
++          descriptor_draw_handle,D3D12_CLEAR_FLAG_DEPTH|D3D12_CLEAR_FLAG_STENCIL,
++          0.0f,0,0,nullptr);
++      REXGPU_INFO("RTV initial D24S8 zero: {}",key.GetDebugName());
++    }
+     device->CreateShaderResourceView(resource.Get(), &stencil_srv_desc,
+                                      descriptor_srv_stencil.GetHandle());
+     // Depth SRV.
+@@ -3698,7 +3817,9 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
+     pipeline_desc.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+     pipeline_desc.DepthStencilState.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+     pipeline_desc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+-    pipeline_desc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
++    pipeline_desc.DepthStencilState.FrontFace.StencilFunc =
++        REXCVAR_GET(d3d12_intel_stencil_always_workaround)
++            ? D3D12_COMPARISON_FUNC_EQUAL : D3D12_COMPARISON_FUNC_ALWAYS;
+     pipeline_desc.DepthStencilState.BackFace = pipeline_desc.DepthStencilState.FrontFace;
+     pipeline_desc.DSVFormat = GetDepthDSVDXGIFormat(dest_depth_format);
+     // Even if creation fails, still store the null pointers not to try to
+@@ -3743,7 +3864,9 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
+         pipeline_desc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+         // Using ALWAYS, not NOT_EQUAL, so depth writing is unaffected by
+         // stencil being different.
+-        pipeline_desc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
++        pipeline_desc.DepthStencilState.FrontFace.StencilFunc =
++        REXCVAR_GET(d3d12_intel_stencil_always_workaround)
++            ? D3D12_COMPARISON_FUNC_EQUAL : D3D12_COMPARISON_FUNC_ALWAYS;
+         pipeline_desc.DepthStencilState.BackFace = pipeline_desc.DepthStencilState.FrontFace;
+       }
+       pipeline_desc.DSVFormat = GetDepthDSVDXGIFormat(dest_depth_format);
+@@ -3759,9 +3882,26 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
+         transfer_pipelines_.emplace(key, pipeline).first->second;
+     pipelines = inserted_pipeline ? &inserted_pipeline : nullptr;
+   }
+-  // TODO(Triang3l): Pipeline state name debug names (lots of variables - but
+-  // not very important since everything can be derived from the bindings and
+-  // outputs in a debugger).
++  // Debug metadata only: identify ownership transfers in opt-in GPU timings.
++  if (pipelines) {
++    const char* source_name =
++        (rs & kTransferUsedRootParameterColorSRVBit)
++            ? xenos::GetColorRenderTargetFormatName(source_color_format)
++            : xenos::GetDepthRenderTargetFormatName(source_depth_format);
++    const char* dest_name = dest_is_color
++        ? xenos::GetColorRenderTargetFormatName(dest_color_format)
++        : xenos::GetDepthRenderTargetFormatName(dest_depth_format);
++    const uint32_t count = dest_is_stencil_bit ? 8 : 1;
++    for (uint32_t bit = 0; bit < count; ++bit) {
++      auto name = rex::string::to_utf16(fmt::format(
++          "RT Transfer mode {} {} {}x -> {} {}x host-depth {}x copy {} bit {}",
++          uint32_t(key.mode), source_name, 1u << uint32_t(key.source_msaa_samples),
++          dest_name, 1u << uint32_t(key.dest_msaa_samples),
++          1u << uint32_t(key.host_depth_source_msaa_samples),
++          bool(key.host_depth_source_is_copy), bit));
++      pipelines[bit]->SetName(reinterpret_cast<LPCWSTR>(name.c_str()));
++    }
++  }
+ 
+   if (!pipelines) {
+     // Stencil bit copying uses only the stencil SRV for depth / stencil source,
+@@ -4241,7 +4381,14 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+ 
+       // Perform the transfers for the render target.
+ 
+-      if (!transfer_viewport_set) {
++      const bool ben10_clip_transfer=REXCVAR_GET(d3d12_intel_viewport_workaround);
++      if (ben10_clip_transfer) {
++        const auto desc=dest_d3d12_rt.resource()->GetDesc();
++        pixels_to_ndc_x=2.0f*draw_resolution_scale_x()/float(desc.Width);
++        pixels_to_ndc_y=2.0f*draw_resolution_scale_y()/float(desc.Height);
++      }
++      // The destination may change during ownership transfers.
++      if (!transfer_viewport_set || ben10_clip_transfer) {
+         transfer_viewport_set = true;
+         // Will be passing NDC directly, set the viewport to the maximum host
+         // render target size for simplicity. Using a power-of-two scale for
+@@ -4249,8 +4396,11 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+         D3D12_VIEWPORT transfer_viewport;
+         transfer_viewport.TopLeftX = 0.0f;
+         transfer_viewport.TopLeftY = 0.0f;
+-        transfer_viewport.Width = float(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
+-        transfer_viewport.Height = float(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
++        const auto ben10_dest_desc=dest_d3d12_rt.resource()->GetDesc();
++        transfer_viewport.Width = ben10_clip_transfer ? float(ben10_dest_desc.Width)
++            : float(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
++        transfer_viewport.Height = ben10_clip_transfer ? float(ben10_dest_desc.Height)
++            : float(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
+         transfer_viewport.MinDepth = 0.0f;
+         transfer_viewport.MaxDepth = 1.0f;
+         command_processor_.SetViewport(transfer_viewport);
+@@ -4556,6 +4706,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+       uint64_t clear_value = render_target_resolve_clear_values[i];
+       if (dest_rt_key.is_depth) {
+         uint32_t depth_guest_clear_value = (uint32_t(clear_value) >> 8) & 0xFFFFFF;
++        ben10_profile::depth_clear_audit.Record(uint32_t(dest_rt_key.GetDepthFormat()),
++                                               depth_guest_clear_value, UINT(clear_value) & 0xFF);
+         float depth_host_clear_value = 0.0f;
+         switch (dest_rt_key.GetDepthFormat()) {
+           case xenos::DepthRenderTargetFormat::kD24S8:
+diff --git a/src/graphics/d3d12/shared_memory.cpp b/src/graphics/d3d12/shared_memory.cpp
+index a5c97a0..3ef4ade 100644
+--- a/src/graphics/d3d12/shared_memory.cpp
++++ b/src/graphics/d3d12/shared_memory.cpp
+@@ -9,6 +9,8 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include "D:/Ben 10 recomp/native-rex/src/upload_audit.h"
++#include <cstdlib>
+ #include <cstring>
+ #include <utility>
+ #include <vector>
+@@ -138,10 +140,22 @@ bool D3D12SharedMemory::Initialize() {
+       provider, rex::align(ui::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
+                            size_t(1) << page_size_log2()));
+ 
++  ben10_reuse_uploads_=std::getenv("BEN10_REUSE_UPLOADS")!=nullptr;
++  const char* output=std::getenv("BEN10_UPLOAD_AUDIT");
++  if (output || ben10_reuse_uploads_) {
++    ben10_upload_audit_=std::make_unique<ben10_profile::UploadAudit>(output,page_size_log2());
++    ben10_upload_watch_=RegisterGlobalWatch(
++        [](const std::unique_lock<std::recursive_mutex>&,void* context,
++           uint32_t first,uint32_t last,bool gpu) {
++          if(gpu) static_cast<ben10_profile::UploadAudit*>(context)->Invalidate(first,last);
++        },ben10_upload_audit_.get());
++  }
+   return true;
+ }
+ 
+ void D3D12SharedMemory::Shutdown(bool from_destructor) {
++  if(ben10_upload_watch_) { UnregisterGlobalWatch(ben10_upload_watch_);ben10_upload_watch_=nullptr; }
++  ben10_upload_audit_.reset();
+   upload_buffer_pool_.reset();
+ 
+   ui::d3d12::util::ReleaseAndNull(buffer_descriptor_heap_);
+@@ -306,9 +320,16 @@ bool D3D12SharedMemory::UploadRanges(
+   if (upload_page_ranges.empty()) {
+     return true;
+   }
+-  CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
+-  command_processor_.SubmitBarriers();
++  bool copy_ready=false;
++  auto prepare_copy=[&]() {
++    if(copy_ready) return;
++    CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
++    command_processor_.SubmitBarriers();
++    copy_ready=true;
++  };
++  if(!ben10_reuse_uploads_) prepare_copy();
+   auto& command_list = command_processor_.GetDeferredCommandList();
++  std::vector<std::pair<size_t,size_t>> changed;
+   for (auto upload_range : upload_page_ranges) {
+     uint32_t upload_range_start = upload_range.first;
+     uint32_t upload_range_length = upload_range.second;
+@@ -327,9 +348,22 @@ bool D3D12SharedMemory::UploadRanges(
+       std::memcpy(upload_buffer_mapping,
+                   memory().TranslatePhysical(upload_range_start << page_size_log2()),
+                   upload_buffer_size);
+-      command_list.D3DCopyBufferRegion(buffer_, upload_range_start << page_size_log2(),
+-                                       upload_buffer, UINT64(upload_buffer_offset),
+-                                       UINT64(upload_buffer_size));
++      if(ben10_upload_audit_)
++        ben10_upload_audit_->Observe(upload_range_start << page_size_log2(),
++                                    upload_buffer_mapping,upload_buffer_size,
++                                    ben10_reuse_uploads_ ? &changed : nullptr);
++      if(ben10_reuse_uploads_) {
++        for(const auto& range:changed) {
++          prepare_copy();
++          command_list.D3DCopyBufferRegion(buffer_,
++              (UINT64(upload_range_start) << page_size_log2())+range.first,
++              upload_buffer,UINT64(upload_buffer_offset)+range.first,range.second);
++        }
++      } else {
++        command_list.D3DCopyBufferRegion(buffer_, upload_range_start << page_size_log2(),
++                                         upload_buffer, UINT64(upload_buffer_offset),
++                                         UINT64(upload_buffer_size));
++      }
+       uint32_t upload_buffer_pages = uint32_t(upload_buffer_size >> page_size_log2());
+       upload_range_start += upload_buffer_pages;
+       upload_range_length -= upload_buffer_pages;
+diff --git a/src/graphics/d3d12/texture_cache.cpp b/src/graphics/d3d12/texture_cache.cpp
+index 2be0e8e..756aa45 100644
+--- a/src/graphics/d3d12/texture_cache.cpp
++++ b/src/graphics/d3d12/texture_cache.cpp
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include "D:/Ben 10 recomp/native-rex/src/texture_load_audit.h"
+ #include <algorithm>
+ #include <array>
+ #include <cfloat>
+@@ -557,6 +558,47 @@ bool D3D12TextureCache::Initialize() {
+                               sizeof(shaders::texture_load_depth_float_scaled_cs)};
+   }
+ 
++  // Debug labels only: shader bytecode, selection and commands are unchanged.
++  static constexpr const wchar_t* load_pipeline_names[]={
++      L"Texture Load 8bpb",
++      L"Texture Load 16bpb",
++      L"Texture Load 32bpb",
++      L"Texture Load 64bpb",
++      L"Texture Load 128bpb",
++      L"Texture Load R5G5B5A1ToB5G5R5A1",
++      L"Texture Load R5G6B5ToB5G6R5",
++      L"Texture Load R5G6B5ToRGBA8",
++      L"Texture Load R5G5B6ToB5G6R5WithRBGASwizzle",
++      L"Texture Load RGBA4ToBGRA4",
++      L"Texture Load RGBA4ToARGB4",
++      L"Texture Load RGBA4ToRGBA8",
++      L"Texture Load GBGR8ToGRGB8",
++      L"Texture Load GBGR8ToRGB8",
++      L"Texture Load BGRG8ToRGBG8",
++      L"Texture Load BGRG8ToRGB8",
++      L"Texture Load R10G11B11ToRGBA16",
++      L"Texture Load R10G11B11ToRGBA16SNorm",
++      L"Texture Load R11G11B10ToRGBA16",
++      L"Texture Load R11G11B10ToRGBA16SNorm",
++      L"Texture Load R16UNormToFloat",
++      L"Texture Load R16SNormToFloat",
++      L"Texture Load RG16UNormToFloat",
++      L"Texture Load RG16SNormToFloat",
++      L"Texture Load RGBA16UNormToFloat",
++      L"Texture Load RGBA16SNormToFloat",
++      L"Texture Load DXT1ToRGBA8",
++      L"Texture Load DXT3ToRGBA8",
++      L"Texture Load DXT5ToRGBA8",
++      L"Texture Load DXNToRG8",
++      L"Texture Load DXT3A",
++      L"Texture Load DXT3AAs1111ToBGRA4",
++      L"Texture Load DXT3AAs1111ToARGB4",
++      L"Texture Load DXT5AToR8",
++      L"Texture Load CTX1",
++      L"Texture Load DepthUnorm",
++      L"Texture Load DepthFloat",
++  };
++  static_assert(sizeof(load_pipeline_names)/sizeof(load_pipeline_names[0])==kLoadShaderCount);
+   // Create the loading pipelines.
+   for (size_t i = 0; i < kLoadShaderCount; ++i) {
+     const D3D12_SHADER_BYTECODE& current_load_shader_code = load_shader_code[i];
+@@ -573,6 +615,7 @@ bool D3D12TextureCache::Initialize() {
+           i);
+       return false;
+     }
++    load_pipelines_[i]->SetName(load_pipeline_names[i]);
+     if (IsDrawResolutionScaled()) {
+       const D3D12_SHADER_BYTECODE& current_load_shader_code_scaled = load_shader_code_scaled[i];
+       if (current_load_shader_code_scaled.pShaderBytecode) {
+@@ -587,6 +630,7 @@ bool D3D12TextureCache::Initialize() {
+               i);
+           return false;
+         }
++        load_pipelines_scaled_[i]->SetName(load_pipeline_names[i]);
+       }
+     }
+   }
+@@ -1594,6 +1638,15 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+   uint32_t block_width = guest_format_info->block_width;
+   uint32_t block_height = guest_format_info->block_height;
+   uint32_t bytes_per_block = guest_format_info->bytes_per_block();
++  if(ben10_profile::texture_load_audit.output) {
++    ben10_profile::texture_load_audit.Record({uint32_t(load_shader),uint32_t(guest_format),
++      width,height,uint32_t(dimension),depth_or_array_size,uint32_t(texture_key.tiled),
++      uint32_t(texture_key.endianness),uint32_t(texture_key.mip_max_level),uint32_t(load_base),
++      uint32_t(load_mips),guest_layout.base.row_pitch_bytes,uint32_t(texture_key.base_page),
++      uint32_t(texture_key.mip_page),uint32_t(texture_key.packed_mips),
++      uint32_t(texture_resolution_scaled),uint32_t(d3d12_texture.GetGuestBaseSize()),
++      uint32_t(d3d12_texture.GetGuestMipsSize())});
++  }
+   uint32_t level_first = load_base ? 0 : 1;
+   uint32_t level_last = load_mips ? texture_key.mip_max_level : 0;
+   assert_true(level_first <= level_last);
+diff --git a/src/graphics/graphics_system.cpp b/src/graphics/graphics_system.cpp
+index 8f2fcb0..d838fce 100644
+--- a/src/graphics/graphics_system.cpp
++++ b/src/graphics/graphics_system.cpp
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include "D:/Ben 10 recomp/native-rex/src/vblank_audit.h"
+ #include <rex/graphics/graphics_system.h>
+ 
+ #include <algorithm>
+@@ -158,15 +159,26 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+             std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
+         uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
+         uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
++        ben10_profile::VblankAudit audit(refresh_rate_hz);
+         while (vsync_worker_running_) {
+           uint64_t current_time = chrono::Clock::QueryGuestTickCount();
+           uint64_t interval_ticks =
+               REXCVAR_GET(vsync) ? vsync_interval_ticks : no_vsync_interval_ticks;
++          uint32_t audit_batch=0;
+           while (current_time - last_frame_time >= interval_ticks) {
+-            MarkVblank();
++            if(audit.output) {
++              const auto begin=ben10_profile::VblankAudit::Clock::now();
++              MarkVblank();
++              audit.Mark(begin,ben10_profile::VblankAudit::Clock::now());
++              ++audit_batch;
++            } else MarkVblank();
+             last_frame_time += interval_ticks;
+           }
+-          rex::thread::Sleep(std::chrono::milliseconds(1));
++          if(audit.output) {
++            const auto begin=ben10_profile::VblankAudit::Clock::now();
++            rex::thread::Sleep(std::chrono::milliseconds(1));
++            audit.Sleep(begin,ben10_profile::VblankAudit::Clock::now(),audit_batch);
++          } else rex::thread::Sleep(std::chrono::milliseconds(1));
+         }
+         return 0;
+       }));
+diff --git a/src/graphics/pipeline/render_target/cache.cpp b/src/graphics/pipeline/render_target/cache.cpp
+index 953c5fd..59053d6 100644
+--- a/src/graphics/pipeline/render_target/cache.cpp
++++ b/src/graphics/pipeline/render_target/cache.cpp
+@@ -17,6 +17,7 @@
+ #include <unordered_set>
+ #include <utility>
+ 
++#include "D:/Ben 10 recomp/native-rex/src/depth_transfer_audit.h"
+ #include <rex/assert.h>
+ #include <rex/cvar.h>
+ #include <rex/graphics/flags.h>
+@@ -688,6 +689,32 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+     uint32_t rt_bit_index = rt_base_index.second;
+     ChangeOwnership(rt_keys[rt_bit_index], 0, rt_lengths_tiles[i],
+                     interlock_barrier_only ? nullptr : &last_update_transfers_[rt_bit_index]);
++    if(ben10_profile::depth_transfer_audit.output && rt_bit_index==0 && !interlock_barrier_only) {
++      const auto front=regs.Get<reg::RB_STENCILREFMASK>();
++      const auto back=regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
++      const auto& control=normalized_depth_control;
++      const bool depth_may_write=control.z_enable && control.z_write_enable;
++      // Conservative: include potentially culled faces and operations whose
++      // comparison may never occur. Never call a possibly writable state read-only.
++      const bool front_ops=control.stencilfail!=xenos::StencilOp::kKeep ||
++          control.stencilzpass!=xenos::StencilOp::kKeep || control.stencilzfail!=xenos::StencilOp::kKeep;
++      const bool back_ops=control.stencilfail_bf!=xenos::StencilOp::kKeep ||
++          control.stencilzpass_bf!=xenos::StencilOp::kKeep || control.stencilzfail_bf!=xenos::StencilOp::kKeep;
++      const bool stencil_may_write=control.stencil_enable &&
++          ((front.stencilwritemask && front_ops) ||
++           (control.backface_enable && back.stencilwritemask && back_ops));
++      const auto& transfers=last_update_transfers_[0];
++      const auto record=[&](const Transfer* transfer) {
++        ben10_profile::depth_transfer_audit.Record({rt_keys[0].key,
++          transfer ? transfer->source->key().key : UINT32_MAX,
++          transfer && transfer->host_depth_source ? transfer->host_depth_source->key().key : UINT32_MAX,
++          control.value,front.value,back.value,uint32_t(depth_may_write),uint32_t(stencil_may_write),
++          uint32_t(!depth_may_write && !stencil_may_write),uint32_t(transfers.size()),
++          transfer ? transfer->start_tiles : 0,transfer ? transfer->end_tiles : 0,
++          rt_lengths_tiles[i],height_used,depth_and_color_rts_used_bits});
++      };
++      if(transfers.empty())record(nullptr);else for(const auto& transfer:transfers)record(&transfer);
++    }
+   }
+ 
+   if (interlock_barrier_only) {
+diff --git a/src/graphics/pipeline/shader/dxbc_translator.cpp b/src/graphics/pipeline/shader/dxbc_translator.cpp
+index 2c31a0e..7cda06f 100644
+--- a/src/graphics/pipeline/shader/dxbc_translator.cpp
++++ b/src/graphics/pipeline/shader/dxbc_translator.cpp
+@@ -26,8 +26,16 @@
+ 
+ REXCVAR_DEFINE_BOOL(dxbc_switch, true, "GPU/Shader", "Use switch statements in DXBC");
+ 
++// Explicit experiment: the original guard targets Intel HD 4000. Keep it
++// active by default; newer Intel drivers must be measured and validated first.
++REXCVAR_DEFINE_BOOL(dxbc_allow_switch_on_intel, false, "GPU/Shader",
++                    "Experimental switch control flow on modern Intel drivers")
++    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++
+ REXCVAR_DEFINE_BOOL(dxbc_source_map, false, "GPU/Shader", "Generate source maps for DXBC");
+ 
++bool& FLAGS_d3d12_rov_raw_edram_storage_();
++
+ namespace rex::graphics {
+ using namespace ucode;
+ 
+@@ -175,7 +183,8 @@ uint32_t DxbcShaderTranslator::GetModificationRegisterCount() const {
+ 
+ bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
+   // Xenia crashes on Intel HD Graphics 4000 with switch.
+-  return REXCVAR_GET(dxbc_switch) && vendor_id_ != ui::GraphicsProvider::GpuVendorID::kIntel;
++  return REXCVAR_GET(dxbc_switch) &&
++      (vendor_id_ != ui::GraphicsProvider::GpuVendorID::kIntel || REXCVAR_GET(dxbc_allow_switch_on_intel));
+ }
+ 
+ uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask, uint32_t count) {
+@@ -2439,10 +2448,11 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
+       } else if (i == uav_index_edram_) {
+         // EDRAM R32_UINT buffer.
+         uav.name_ptr = edram_name_ptr;
+-        uav.type = dxbc::RdefInputType::kUAVRWTyped;
+-        uav.return_type = dxbc::ResourceReturnType::kUInt;
++        const bool raw_edram=REXCVAR_GET(d3d12_rov_raw_edram);
++        uav.type = raw_edram ? dxbc::RdefInputType::kUAVRWByteAddress : dxbc::RdefInputType::kUAVRWTyped;
++        uav.return_type = raw_edram ? dxbc::ResourceReturnType::kMixed : dxbc::ResourceReturnType::kUInt;
+         uav.dimension = dxbc::RdefDimension::kUAVBuffer;
+-        uav.sample_count = UINT32_MAX;
++        uav.sample_count = raw_edram ? 0 : UINT32_MAX;
+         uav.bind_point = uint32_t(UAVRegister::kEdram);
+       } else {
+         assert_unhandled_case(i);
+@@ -3244,11 +3254,16 @@ void DxbcShaderTranslator::WriteShaderCode() {
+     } else if (i == uav_index_edram_) {
+       // EDRAM buffer R32_UINT rasterizer-ordered view.
+       shader_feature_info_.feature_flags[0] |= dxbc::kShaderFeature0_ROVs;
++      if (REXCVAR_GET(d3d12_rov_raw_edram)) {
++        ao_.OpDclUnorderedAccessViewRaw(dxbc::kUAVFlagRasterizerOrderedAccess,
++            dxbc::Src::U(dxbc::Src::Dcl,uav_index_edram_,uint32_t(UAVRegister::kEdram),uint32_t(UAVRegister::kEdram)));
++      } else {
+       ao_.OpDclUnorderedAccessViewTyped(
+           dxbc::ResourceDimension::kBuffer, dxbc::kUAVFlagRasterizerOrderedAccess,
+           dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kUInt),
+           dxbc::Src::U(dxbc::Src::Dcl, uav_index_edram_, uint32_t(UAVRegister::kEdram),
+                        uint32_t(UAVRegister::kEdram)));
++      }
+     } else {
+       assert_unhandled_case(i);
+     }
+diff --git a/src/graphics/pipeline/shader/dxbc_translator_fetch.cpp b/src/graphics/pipeline/shader/dxbc_translator_fetch.cpp
+index 31de175..d84c157 100644
+--- a/src/graphics/pipeline/shader/dxbc_translator_fetch.cpp
++++ b/src/graphics/pipeline/shader/dxbc_translator_fetch.cpp
+@@ -559,6 +559,10 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(uint32_t fetch_constant,
+ 
+ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+     const ParsedTextureFetchInstruction& instr) {
++  // Pipeline selection proves every bound fetch has unsigned signs.
++  const bool known_unsigned =
++      is_pixel_shader() && !edram_rov_used_ &&
++      GetDxbcShaderModification().pixel.rov_color_format_mode == 7;
+   if (emit_source_map_) {
+     instruction_disassembly_buffer_.Reset();
+     instr.Disassemble(&instruction_disassembly_buffer_);
+@@ -982,9 +986,14 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+     if (instr.opcode == FetchOpcode::kTextureFetch) {
+       signs_temp = PushSystemTemp();
+       MarkSystemConstantUsed(SystemConstants::Index::kTextureSwizzledSigns);
+-      a_.OpUBFE(dxbc::Dest::R(signs_temp, used_result_nonzero_components), dxbc::Src::LU(2),
+-                dxbc::Src::LU(signs_shift, signs_shift + 2, signs_shift + 4, signs_shift + 6),
+-                signs_uint_src);
++      if (is_pixel_shader() && !edram_rov_used_ &&
++          GetDxbcShaderModification().pixel.rov_color_format_mode==7) {
++        a_.OpMov(dxbc::Dest::R(signs_temp, used_result_nonzero_components), dxbc::Src::LU(0));
++      } else {
++        a_.OpUBFE(dxbc::Dest::R(signs_temp, used_result_nonzero_components), dxbc::Src::LU(2),
++                  dxbc::Src::LU(signs_shift, signs_shift + 2, signs_shift + 4, signs_shift + 6),
++                  signs_uint_src);
++      }
+     }
+ 
+     // - Coordinates.
+@@ -1405,9 +1414,15 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+         // specified LOD + sampler LOD bias + instruction LOD bias).
+         dxbc::Dest lod_dest(dxbc::Dest::R(grad_h_lod_temp, 0b1000));
+         // Fetch constant LOD bias * 32.
+-        a_.OpIBFE(lod_dest, dxbc::Src::LU(10), dxbc::Src::LU(12),
+-                  RequestTextureFetchConstantWord(tfetch_index, 4));
+-        a_.OpIToF(lod_dest, lod_src);
++        if (is_pixel_shader() && !edram_rov_used_ &&
++            GetDxbcShaderModification().pixel.rov_color_format_mode==7 &&
++            (GetDxbcShaderModification().pixel.rov_blend_state_codes & 4096)) {
++          a_.OpMov(lod_dest, dxbc::Src::LF(0.0f));
++        } else {
++          a_.OpIBFE(lod_dest, dxbc::Src::LU(10), dxbc::Src::LU(12),
++                    RequestTextureFetchConstantWord(tfetch_index, 4));
++          a_.OpIToF(lod_dest, lod_src);
++        }
+         if (instr.attributes.use_register_lod) {
+           // Divide the fetch constant LOD bias by 32, and add the register LOD
+           // and the instruction LOD bias.
+@@ -1814,7 +1829,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+           }
+           // Always 3 coordinate components (1D and 2D are padded to 2D arrays,
+           // 3D and cube have 3 coordinate dimensions).
+-          a_.OpIf(false, is_all_signed_src);
++          if (!known_unsigned) {
++            a_.OpIf(false, is_all_signed_src);
++          }
+           {
+             // Sample the unsigned texture.
+             if (bindless_resources_used_) {
+@@ -1842,8 +1859,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+                            dxbc::Src::R(coord_and_sampler_temp), 3, srv_unsigned, sampler, lod_src);
+             }
+           }
+-          a_.OpEndIf();
+-          a_.OpIf(true, is_any_signed_src);
++          if (!known_unsigned) {
++            a_.OpEndIf();
++            a_.OpIf(true, is_any_signed_src);
+           {
+             // Sample the signed texture.
+             uint32_t signed_temp = PushSystemTemp();
+@@ -1877,7 +1895,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+             // Release signed_temp.
+             PopSystemTemp();
+           }
+-          a_.OpEndIf();
++            a_.OpEndIf();
++          }
+           if (layer) {
+             assert_true(layer_value_temp != system_temp_result_);
+             // Interpolate between the two layers.
+@@ -1919,7 +1938,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+     // Apply the bias and gamma correction (gamma is after filtering here,
+     // likely should be before, but it's outside Xenia's control for host
+     // sampler filtering).
+-    if (instr.opcode == FetchOpcode::kTextureFetch) {
++    if (instr.opcode == FetchOpcode::kTextureFetch &&
++        !(is_pixel_shader() && !edram_rov_used_ &&
++          GetDxbcShaderModification().pixel.rov_color_format_mode==7)) {
+       assert_true(signs_temp != UINT32_MAX);
+       for (uint32_t i = 0; i < 4; ++i) {
+         if (!(used_result_nonzero_components & (1 << i))) {
+@@ -1954,11 +1975,19 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+   if (instr.opcode == FetchOpcode::kTextureFetch) {
+     // Apply the result exponent bias.
+     uint32_t exp_adjust_temp = PushSystemTemp();
++    if (is_pixel_shader() && !edram_rov_used_ &&
++        GetDxbcShaderModification().pixel.rov_color_format_mode==7 &&
++        (GetDxbcShaderModification().pixel.rov_blend_state_codes & 2048)) {
++      // IBFE(0) followed by IMAd produces the exact bit pattern of 1.0f.
++      // Keep the original multiply and all following result processing.
++      a_.OpMov(dxbc::Dest::R(exp_adjust_temp, 0b0001), dxbc::Src::LF(1.0f));
++    } else {
+     a_.OpIBFE(dxbc::Dest::R(exp_adjust_temp, 0b0001), dxbc::Src::LU(6), dxbc::Src::LU(13),
+               RequestTextureFetchConstantWord(tfetch_index, 3));
+     a_.OpIMAd(dxbc::Dest::R(exp_adjust_temp, 0b0001),
+               dxbc::Src::R(exp_adjust_temp, dxbc::Src::kXXXX), dxbc::Src::LI(int32_t(1) << 23),
+               dxbc::Src::LF(1.0f));
++    }
+     a_.OpMul(dxbc::Dest::R(system_temp_result_, used_result_nonzero_components),
+              dxbc::Src::R(system_temp_result_), dxbc::Src::R(exp_adjust_temp, dxbc::Src::kXXXX));
+     // Release exp_adjust_temp.
+diff --git a/src/graphics/pipeline/shader/dxbc_translator_om.cpp b/src/graphics/pipeline/shader/dxbc_translator_om.cpp
+index a7d508a..dc99504 100644
+--- a/src/graphics/pipeline/shader/dxbc_translator_om.cpp
++++ b/src/graphics/pipeline/shader/dxbc_translator_om.cpp
+@@ -12,6 +12,7 @@
+ #include <cstdint>
+ 
+ #include <rex/assert.h>
++#include <rex/cvar.h>
+ #include <rex/graphics/flags.h>
+ #include <rex/graphics/pipeline/render_target/cache.h>
+ #include <rex/graphics/pipeline/shader/dxbc_translator.h>
+@@ -19,6 +20,8 @@
+ #include <rex/graphics/util/draw.h>
+ #include <rex/math.h>
+ 
++bool& FLAGS_d3d12_rov_raw_edram_storage_();
++
+ namespace rex::graphics {
+ using namespace ucode;
+ 
+@@ -465,7 +468,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
+     a_.OpAdd(temp_z_dest, temp_z_src, in_position_z);
+   }
+ 
+-  for (uint32_t i = 0; i < 4; ++i) {
++  for (uint32_t i = 0; i < GetRovSampleCountForTranslation(); ++i) {
+     // With early depth/stencil, depth/stencil writing may be deferred to the
+     // end of the shader to prevent writing in case something (like alpha test,
+     // which is dynamic GPU state) discards the pixel. So, write directly to the
+@@ -606,9 +609,17 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
+     if (uav_index_edram_ == kBindingIndexUnallocated) {
+       uav_index_edram_ = uav_count_++;
+     }
+-    a_.OpLdUAVTyped(
++    if (REXCVAR_GET(d3d12_rov_raw_edram)) {
++          uint32_t byte_address=PushSystemTemp();
++          a_.OpUMin(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),dxbc::Src::LU(0x3fffffffu));
++          a_.OpIShL(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::LU(2));
++          a_.OpLdRaw(sample_temp_x_dest,dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram), dxbc::Src::kXXXX));
++          PopSystemTemp();
++        } else {
++          a_.OpLdUAVTyped(
+         sample_temp_x_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1,
+         dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram), dxbc::Src::kXXXX));
++        }
+ 
+     // Depth test.
+ 
+@@ -646,7 +657,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
+     // sample_temp.x = old depth/stencil
+     // sample_temp.y = old depth
+     // sample_temp.z = masked depth function passed bits
+-    a_.OpAnd(sample_temp_z_dest, sample_temp_z_src, LoadFlagsSystemConstant());
++    a_.OpAnd(sample_temp_z_dest, sample_temp_z_src, LoadRovDepthPassFlags());
+     // Check if depth test has passed.
+     // sample_temp.x = old depth/stencil
+     // sample_temp.y = old depth
+@@ -696,7 +707,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
+     // Extract the stencil test bit.
+     // sample_temp.x = old depth/stencil
+     // sample_temp.y = stencil test enabled
+-    a_.OpAnd(sample_temp_y_dest, LoadFlagsSystemConstant(), dxbc::Src::LU(kSysFlag_ROVStencilTest));
++    a_.OpAnd(sample_temp_y_dest, LoadRovStencilFlag(), dxbc::Src::LU(kSysFlag_ROVStencilTest));
+     // Check if stencil test is enabled.
+     // sample_temp.x = old depth/stencil
+     // sample_temp.y = free
+@@ -970,7 +981,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
+         if (depth_stencil_early) {
+           // Get if early depth/stencil write is enabled.
+           // sample_temp.x = whether early depth/stencil write is enabled
+-          a_.OpAnd(sample_temp_x_dest, LoadFlagsSystemConstant(),
++          a_.OpAnd(sample_temp_x_dest, LoadRovEarlyWriteFlag(),
+                    dxbc::Src::LU(kSysFlag_ROVDepthStencilEarlyWrite));
+           // Check if need to write early.
+           // sample_temp.x = free
+@@ -980,9 +991,17 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
+         if (uav_index_edram_ == kBindingIndexUnallocated) {
+           uav_index_edram_ = uav_count_++;
+         }
+-        a_.OpStoreUAVTyped(dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
++        if (REXCVAR_GET(d3d12_rov_raw_edram)) {
++          uint32_t byte_address=PushSystemTemp();
++          a_.OpUMin(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),dxbc::Src::LU(0x3fffffffu));
++          a_.OpIShL(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::LU(2));
++          a_.OpStoreRaw(dxbc::Dest::U(uav_index_edram_,uint32_t(UAVRegister::kEdram),0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),sample_depth_stencil_src);
++          PopSystemTemp();
++        } else {
++          a_.OpStoreUAVTyped(dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+                            dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1,
+                            sample_depth_stencil_src);
++        }
+         if (depth_stencil_early) {
+           // Need to still run the shader to know whether to write the
+           // depth/stencil value.
+@@ -1011,9 +1030,15 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
+     // +(80*scale_x+1), so need to do +(80*scale_x), -(80*scale_x-1),
+     // +(80*scale_x) and -(80*scale_x+1) after each sample).
+     uint32_t tile_width = xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
+-    a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+-              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+-              dxbc::Src::LI((i & 1) ? -int32_t(tile_width) + 2 - i : int32_t(tile_width)));
++    const uint32_t sample_count = GetRovSampleCountForTranslation();
++    const int32_t ben10_next_depth_sample_offset = i + 1 == sample_count
++        ? -(i ? int32_t(tile_width) + int32_t(i >> 1) : 0)
++        : ((i & 1) ? -int32_t(tile_width) + 2 - i : int32_t(tile_width));
++    if (ben10_next_depth_sample_offset) {
++      a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
++                dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
++                dxbc::Src::LI(ben10_next_depth_sample_offset));
++    }
+   }
+ 
+   if (ROV_IsDepthStencilEarly()) {
+@@ -1579,7 +1604,7 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
+       // need to scale it from guest 0...1 to host 0...0.5 to support
+       // reinterpretation round trips as viewport scaling doesn't apply to
+       // oDepth.
+-      a_.OpAnd(dxbc::Dest::R(system_temp_depth_stencil_, 0b0010), LoadFlagsSystemConstant(),
++      a_.OpAnd(dxbc::Dest::R(system_temp_depth_stencil_, 0b0010), LoadDepthFormatFlag(),
+                dxbc::Src::LU(kSysFlag_DepthFloat24));
+       a_.OpIf(true, dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kYYYY));
+       a_.OpMul(dxbc::Dest::R(system_temp_depth_stencil_, 0b0001),
+@@ -1834,7 +1859,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+   // depth writing.
+   if (ROV_IsDepthStencilEarly()) {
+     // Write modified depth/stencil.
+-    for (uint32_t i = 0; i < 4; ++i) {
++    for (uint32_t i = 0; i < GetRovSampleCountForTranslation(); ++i) {
+       // Get if need to write to temp.x.
+       // temp.x = whether the depth sample needs to be written.
+       a_.OpAnd(temp_x_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
+@@ -1847,16 +1872,24 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+         if (uav_index_edram_ == kBindingIndexUnallocated) {
+           uav_index_edram_ = uav_count_++;
+         }
+-        a_.OpStoreUAVTyped(dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
++        if (REXCVAR_GET(d3d12_rov_raw_edram)) {
++          uint32_t byte_address=PushSystemTemp();
++          a_.OpUMin(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),dxbc::Src::LU(0x3fffffffu));
++          a_.OpIShL(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::LU(2));
++          a_.OpStoreRaw(dxbc::Dest::U(uav_index_edram_,uint32_t(UAVRegister::kEdram),0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::R(system_temp_depth_stencil_).Select(i));
++          PopSystemTemp();
++        } else {
++          a_.OpStoreUAVTyped(dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+                            dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1,
+                            dxbc::Src::R(system_temp_depth_stencil_).Select(i));
++        }
+       }
+       // Close the write check.
+       a_.OpEndIf();
+       // Go to the next sample (samples are at +0, +(80*scale_x), +1,
+       // +(80*scale_x+1), so need to do +(80*scale_x), -(80*scale_x-1),
+       // +(80*scale_x) and -(80*scale_x+1) after each sample).
+-      if (i < 3) {
++      if (i + 1 < GetRovSampleCountForTranslation()) {
+         a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+                   dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+                   dxbc::Src::LI((i & 1) ? -int32_t(tile_width) + 2 - i : int32_t(tile_width)));
+@@ -1916,6 +1949,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+     // Check if need to write anything to the render target.
+     // temp.x = free.
+     a_.OpIf(true, temp_x_src);
++    const bool ben10_alpha_zero_fast=GetDxbcShaderModification().GetRovAlphaOneFastPath(
++        current_shader().writes_color_targets(),i);
++    if (ben10_alpha_zero_fast) {
++      a_.OpNE(temp_w_dest,dxbc::Src::R(system_temps_color_[i],dxbc::Src::kWWWW),
++              dxbc::Src::LF(0.0f));
++      a_.OpIf(true,temp_w_src);
++    }
+ 
+     // Apply the exponent bias after alpha to coverage because it needs the
+     // unbiased alpha from the shader.
+@@ -1951,16 +1991,39 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+               dxbc::Src::LU(edram_size_32bpp_samples));
+ 
+-    dxbc::Src rt_blend_factors_ops_src(LoadSystemConstant(
+-        SystemConstants::Index::kEdramRTBlendFactorsOps,
+-        offsetof(SystemConstants, edram_rt_blend_factors_ops) + sizeof(uint32_t) * i,
+-        dxbc::Src::kXXXX));
++    // The modification key proves this uniform is the exact identity value.
++    // Literal input lets the host compiler remove unreachable blend branches
++    // and their temporary-register pressure, preserving packing and masks.
++    const auto ben10_modification=GetDxbcShaderModification();
++    const uint32_t ben10_blend_state=ben10_modification.GetRovBlendState(i);
++    const bool ben10_alpha_one_fast=ben10_modification.GetRovAlphaOneFastPath(
++        current_shader().writes_color_targets(),i);
++    const uint32_t ben10_blend_mode=ben10_blend_state>=2 ? ben10_blend_state-1 : 0;
++    dxbc::Src rt_blend_factors_ops_src =
++        (ben10_blend_state==1)
++        ? dxbc::Src::LU(0x00010001)
++        : (ben10_blend_mode
++          ? dxbc::Src::LU(Modification::kKnownRovBlends[ben10_blend_mode])
++          : LoadSystemConstant(SystemConstants::Index::kEdramRTBlendFactorsOps,
++              offsetof(SystemConstants, edram_rt_blend_factors_ops) + sizeof(uint32_t) * i,
++              dxbc::Src::kXXXX));
+     dxbc::Src rt_clamp_vec_src(LoadSystemConstant(
+         SystemConstants::Index::kEdramRTClamp,
+         offsetof(SystemConstants, edram_rt_clamp) + sizeof(float) * 4 * i, dxbc::Src::kXYZW));
+     // Get if not blending to pack the color once for all 4 samples.
+     // temp.x = whether blending is disabled.
++    if (ben10_alpha_one_fast) {
++      // Linear RGBA8 source alpha is clamped before blending in the original.
++      // Do it before all three opacity checks so values above one stay coherent
++      // between prepacking and the per-sample operations.
++      const auto alpha_dest=dxbc::Dest::R(system_temps_color_[i],0b1000);
++      const auto alpha_src=dxbc::Src::R(system_temps_color_[i],dxbc::Src::kWWWW);
++      a_.OpMax(alpha_dest,alpha_src,rt_clamp_vec_src.Select(1));
++      a_.OpMin(alpha_dest,alpha_src,rt_clamp_vec_src.Select(3));
++      a_.OpEq(temp_x_dest,alpha_src,dxbc::Src::LF(1.0f));
++    } else {
+     a_.OpIEq(temp_x_dest, rt_blend_factors_ops_src, dxbc::Src::LU(0x00010001));
++    }
+     // Check if not blending.
+     // temp.x = free.
+     a_.OpIf(true, temp_x_src);
+@@ -2020,7 +2083,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+     a_.OpEndIf();
+ 
+     // Blend, mask and write all samples.
+-    for (uint32_t j = 0; j < 4; ++j) {
++    for (uint32_t j = 0; j < GetRovSampleCountForTranslation(); ++j) {
+       // Get if the sample is covered.
+       // temp.z = whether the sample is covered.
+       a_.OpAnd(temp_z_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
+@@ -2051,10 +2114,17 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+       // to be kept, force the blend control to something with blending in this
+       // case in temp.z.
+       // temp.z = blending mode used to check if need to load.
++      if (ben10_alpha_one_fast) {
++        // Still load previous color for any partial write mask.
++        a_.OpNE(temp_w_dest,dxbc::Src::R(system_temps_color_[i],dxbc::Src::kWWWW),
++                 dxbc::Src::LF(1.0f));
++        a_.OpOr(temp_z_dest,temp_z_src,temp_w_src);
++      } else {
+       a_.OpMovC(temp_z_dest, temp_z_src, dxbc::Src::LU(0), rt_blend_factors_ops_src);
+       // Get if the blend control register requires loading the color to temp.z.
+       // temp.z = whether need to load the color.
+       a_.OpINE(temp_z_dest, temp_z_src, dxbc::Src::LU(0x00010001));
++      }
+       // Check if need to do something with the previous color.
+       // temp.z = free.
+       a_.OpIf(true, temp_z_src);
+@@ -2069,9 +2139,17 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+         if (uav_index_edram_ == kBindingIndexUnallocated) {
+           uav_index_edram_ = uav_count_++;
+         }
+-        a_.OpLdUAVTyped(
++        if (REXCVAR_GET(d3d12_rov_raw_edram)) {
++          uint32_t byte_address=PushSystemTemp();
++          a_.OpUMin(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),dxbc::Src::LU(0x3fffffffu));
++          a_.OpIShL(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::LU(2));
++          a_.OpLdRaw(temp_z_dest,dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram), dxbc::Src::kXXXX));
++          PopSystemTemp();
++        } else {
++          a_.OpLdUAVTyped(
+             temp_z_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1,
+             dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram), dxbc::Src::kXXXX));
++        }
+         // Get if the format is 64bpp to temp.w.
+         // temp.w = whether the render target is 64bpp.
+         a_.OpAnd(temp_w_dest, rt_format_flags_src,
+@@ -2089,10 +2167,18 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+           if (uav_index_edram_ == kBindingIndexUnallocated) {
+             uav_index_edram_ = uav_count_++;
+           }
++          if (REXCVAR_GET(d3d12_rov_raw_edram)) {
++          uint32_t byte_address=PushSystemTemp();
++          a_.OpUMin(dxbc::Dest::R(byte_address,0b0001),temp_w_src,dxbc::Src::LU(0x3fffffffu));
++          a_.OpIShL(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::LU(2));
++          a_.OpLdRaw(temp_w_dest,dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram), dxbc::Src::kXXXX));
++          PopSystemTemp();
++        } else {
+           a_.OpLdUAVTyped(
+               temp_w_dest, temp_w_src, 1,
+               dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram), dxbc::Src::kXXXX));
+         }
++        }
+         // The color is 32bpp.
+         a_.OpElse();
+         {
+@@ -2111,8 +2197,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+ 
+         // Get if blending is enabled to color_temp.x.
+         // color_temp.x = whether blending is enabled.
++        if (ben10_alpha_one_fast) {
++          a_.OpNE(dxbc::Dest::R(color_temp,0b0001),
++                   dxbc::Src::R(system_temps_color_[i],dxbc::Src::kWWWW),dxbc::Src::LF(1.0f));
++        } else {
+         a_.OpINE(dxbc::Dest::R(color_temp, 0b0001), rt_blend_factors_ops_src,
+                  dxbc::Src::LU(0x00010001));
++        }
+         // Check if need to blend.
+         // color_temp.x = free.
+         a_.OpIf(true, dxbc::Src::R(color_temp, dxbc::Src::kXXXX));
+@@ -2556,8 +2647,16 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+       if (uav_index_edram_ == kBindingIndexUnallocated) {
+         uav_index_edram_ = uav_count_++;
+       }
+-      a_.OpStoreUAVTyped(dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
++      if (REXCVAR_GET(d3d12_rov_raw_edram)) {
++          uint32_t byte_address=PushSystemTemp();
++          a_.OpUMin(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),dxbc::Src::LU(0x3fffffffu));
++          a_.OpIShL(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::LU(2));
++          a_.OpStoreRaw(dxbc::Dest::U(uav_index_edram_,uint32_t(UAVRegister::kEdram),0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),temp_x_src);
++          PopSystemTemp();
++        } else {
++          a_.OpStoreUAVTyped(dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+                          dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1, temp_x_src);
++        }
+       // Get if the format is 64bpp to temp.z.
+       // temp.z = whether the render target is 64bpp.
+       a_.OpAnd(temp_z_dest, rt_format_flags_src,
+@@ -2575,8 +2674,16 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+         if (uav_index_edram_ == kBindingIndexUnallocated) {
+           uav_index_edram_ = uav_count_++;
+         }
+-        a_.OpStoreUAVTyped(dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
++        if (REXCVAR_GET(d3d12_rov_raw_edram)) {
++          uint32_t byte_address=PushSystemTemp();
++          a_.OpUMin(dxbc::Dest::R(byte_address,0b0001),temp_z_src,dxbc::Src::LU(0x3fffffffu));
++          a_.OpIShL(dxbc::Dest::R(byte_address,0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),dxbc::Src::LU(2));
++          a_.OpStoreRaw(dxbc::Dest::U(uav_index_edram_,uint32_t(UAVRegister::kEdram),0b0001),dxbc::Src::R(byte_address,dxbc::Src::kXXXX),temp_y_src);
++          PopSystemTemp();
++        } else {
++          a_.OpStoreUAVTyped(dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+                            temp_z_src, 1, temp_y_src);
++        }
+       }
+       // Close the 64bpp conditional.
+       a_.OpEndIf();
+@@ -2593,7 +2700,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+       // +(80*scale_x) and -(80*scale_x+dwpp) after each sample).
+       // Though no need to do this for the last sample as for the next render
+       // target, the address will be recalculated.
+-      if (j < 3) {
++      if (j + 1 < GetRovSampleCountForTranslation()) {
+         if (j & 1) {
+           // temp.z = whether the render target is 64bpp.
+           a_.OpAnd(temp_z_dest, rt_format_flags_src,
+@@ -2613,6 +2720,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+       }
+     }
+ 
++    if (ben10_alpha_zero_fast) a_.OpEndIf();
+     // Close the render target write check.
+     a_.OpEndIf();
+   }
+@@ -3051,7 +3159,7 @@ void DxbcShaderTranslator::ROV_DepthTo24Bit(uint32_t d24_temp, uint32_t d24_temp
+   assert_true(temp_temp != d32_temp || temp_temp_component != d32_temp_component);
+   // Source and destination may be the same.
+ 
+-  a_.OpAnd(dxbc::Dest::R(temp_temp, 1 << temp_temp_component), LoadFlagsSystemConstant(),
++  a_.OpAnd(dxbc::Dest::R(temp_temp, 1 << temp_temp_component), LoadDepthFormatFlag(),
+            dxbc::Src::LU(kSysFlag_DepthFloat24));
+   // Convert according to the format.
+   a_.OpIf(true, dxbc::Src::R(temp_temp).Select(temp_temp_component));
+diff --git a/src/graphics/shaders/ben10_direct_resolve_rgba8_1x.cs.hlsl b/src/graphics/shaders/ben10_direct_resolve_rgba8_1x.cs.hlsl
+new file mode 100644
+index 0000000..c80338e
+--- /dev/null
++++ b/src/graphics/shaders/ben10_direct_resolve_rgba8_1x.cs.hlsl
+@@ -0,0 +1,48 @@
++// Research candidate for the existing SDK resolve path, not selected at runtime.
++// Xenos tiling follows the SDK / Xenia algorithm (BSD-3-Clause, SDK LICENSE).
++// Domain: unscaled RGBA8 color, guest and owner 1x, equal base/pitch, one owner,
++// no source offset, no destination array, byte order 0 or 2, optional R/B swap.
++// Root constants remain the original five DWORDs. CPU integration must prove
++// complete ownership coverage and retain the generic path for every other case.
++cbuffer ResolveConstants : register(b0) {
++  uint edram_info;
++  uint coordinate_info;
++  uint dest_info;
++  uint dest_coordinate_info;
++  uint dest_base;
++};
++Texture2D<float4> source_image : register(t0);
++RWBuffer<uint4> dest_data : register(u0);
++
++uint TiledAddress(uint2 pixel, uint pitch) {
++  uint outer = ((pixel.y >> 5) * (pitch >> 5) + (pixel.x >> 5)) << 6;
++  uint inner = (((pixel.y >> 1) & 7) << 3) | (pixel.x & 7);
++  uint combined = (outer | inner) << 2;
++  uint pipe = ((pixel.x >> 3) & 3) ^ (((pixel.y >> 3) & 1) << 1);
++  return ((pixel.y & 1) << 4) | (pipe << 6) | (((pixel.y >> 4) & 1) << 11)
++      | (combined & 15) | (((combined >> 4) & 1) << 5)
++      | (((combined >> 5) & 7) << 8) | ((combined >> 8) << 12);
++}
++uint LoadPacked(uint2 pixel) {
++  // The SDK RT dump uses this UNORM conversion before the generic resolve.
++  uint4 value=uint4(source_image.Load(int3(pixel,0))*255.0f+0.5f);
++  if(dest_info & 0x01000000u) value=value.bgra;
++  uint packed=value.x|(value.y<<8)|(value.z<<16)|(value.w<<24);
++  if((dest_info & 7u)==2u)
++    packed=((packed & 255u)<<24)|((packed & 65280u)<<8)
++        |((packed & 16711680u)>>8)|(packed>>24);
++  return packed;
++}
++[numthreads(8,8,1)]
++void main(uint3 id:SV_DispatchThreadID) {
++  if(id.x>=((coordinate_info>>5)&2047u))return;
++  uint2 pixel=uint2(id.x*8,id.y);
++  uint4 first=uint4(LoadPacked(pixel),LoadPacked(pixel+uint2(1,0)),
++      LoadPacked(pixel+uint2(2,0)),LoadPacked(pixel+uint2(3,0)));
++  uint4 second=uint4(LoadPacked(pixel+uint2(4,0)),LoadPacked(pixel+uint2(5,0)),
++      LoadPacked(pixel+uint2(6,0)),LoadPacked(pixel+uint2(7,0)));
++  uint2 dest_pixel=pixel+uint2((dest_coordinate_info>>20)&15u,(dest_coordinate_info>>24)&15u)*8;
++  uint address=(dest_base+TiledAddress(dest_pixel,(dest_coordinate_info&1023u)*32))>>4;
++  dest_data[address]=first;
++  dest_data[address+2]=second;
++}
+diff --git a/src/graphics/shaders/ben10_resolve_prefill.cs.hlsl b/src/graphics/shaders/ben10_resolve_prefill.cs.hlsl
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/src/graphics/shaders/ben10_resolve_prefill_fused.cs.hlsl b/src/graphics/shaders/ben10_resolve_prefill_fused.cs.hlsl
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/src/graphics/shaders/ben10_texture_direct_uav.cs.hlsl b/src/graphics/shaders/ben10_texture_direct_uav.cs.hlsl
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/src/graphics/shaders/ben10_texture_load_32bpb_2d.cs.hlsl b/src/graphics/shaders/ben10_texture_load_32bpb_2d.cs.hlsl
+new file mode 100644
+index 0000000..e9bbd63
+--- /dev/null
++++ b/src/graphics/shaders/ben10_texture_load_32bpb_2d.cs.hlsl
+@@ -0,0 +1,51 @@
++// Exact specialization of the existing Xenia/ReXGlue texture loader.
++// Xenos address mapping derived from the SDK's texture layout algorithm.
++// Xenia shader algorithm: Copyright 2022 Ben Vanik, BSD-3-Clause (SDK LICENSE).
++// Only 2D tiled, unscaled, single-layer, base-only, widths divisible by 8.
++// Same typed buffer bindings, root constants, thread layout and byte operations.
++#ifndef BEN10_TEXTURE_ENDIAN
++#error BEN10_TEXTURE_ENDIAN must be 0 or 2
++#endif
++#if BEN10_TEXTURE_ENDIAN != 0 && BEN10_TEXTURE_ENDIAN != 2
++#error Unsupported specialized byte order
++#endif
++cbuffer LoadConstants : register(b0) {
++  uint flags;
++  uint guest_offset;
++  uint guest_pitch;
++  uint guest_z_stride;
++  uint3 size_blocks;
++  uint host_offset;
++  uint host_pitch;
++  uint height_texels;
++};
++Buffer<uint4> source_data : register(t0);
++RWBuffer<uint4> dest_data : register(u0);
++
++uint TiledAddress(uint2 pixel) {
++  uint outer = ((pixel.y >> 5) * (guest_pitch >> 5) + (pixel.x >> 5)) << 6;
++  uint inner = (((pixel.y >> 1) & 7) << 3) | (pixel.x & 7);
++  uint combined = (outer | inner) << 2;
++  uint pipe = ((pixel.x >> 3) & 3) ^ (((pixel.y >> 3) & 1) << 1);
++  return ((pixel.y & 1) << 4) | (pipe << 6) | (((pixel.y >> 4) & 1) << 11)
++      | (combined & 15) | (((combined >> 4) & 1) << 5)
++      | (((combined >> 5) & 7) << 8) | ((combined >> 8) << 12);
++}
++uint4 ConvertEndian(uint4 value) {
++#if BEN10_TEXTURE_ENDIAN == 2
++  return ((value & 0x000000FFu) << 24) | ((value & 0x0000FF00u) << 8)
++      | ((value & 0x00FF0000u) >> 8) | (value >> 24);
++#else
++  return value;
++#endif
++}
++[numthreads(4,32,1)]
++void main(uint3 thread_id : SV_DispatchThreadID) {
++  uint2 pixel = thread_id.xy * uint2(8,1);
++  if (pixel.x >= size_blocks.x || pixel.y >= size_blocks.y) return;
++  uint src_byte = guest_offset + TiledAddress(pixel);
++  uint dst_vector = (host_offset + pixel.y * host_pitch + pixel.x * 4) >> 4;
++  dest_data[dst_vector] = ConvertEndian(source_data[src_byte >> 4]);
++  // X[2] is byte address bit 5. Pixel X is divisible by 8 here.
++  dest_data[dst_vector + 1] = ConvertEndian(source_data[(src_byte + 32) >> 4]);
++}
+diff --git a/src/graphics/shaders/bytecode/d3d12_5_1/ben10_resolve_prefill_cs.h b/src/graphics/shaders/bytecode/d3d12_5_1/ben10_resolve_prefill_cs.h
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/src/graphics/shaders/bytecode/d3d12_5_1/ben10_resolve_prefill_fused_cs.h b/src/graphics/shaders/bytecode/d3d12_5_1/ben10_resolve_prefill_fused_cs.h
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/src/graphics/shaders/bytecode/d3d12_5_1/ben10_texture_direct_uav_e0_cs.h b/src/graphics/shaders/bytecode/d3d12_5_1/ben10_texture_direct_uav_e0_cs.h
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/src/graphics/shaders/bytecode/d3d12_5_1/ben10_texture_direct_uav_e2_cs.h b/src/graphics/shaders/bytecode/d3d12_5_1/ben10_texture_direct_uav_e2_cs.h
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/src/ui/d3d12/d3d12_presenter.cpp b/src/ui/d3d12/d3d12_presenter.cpp
+index 306118e..0b2dfd3 100644
+--- a/src/ui/d3d12/d3d12_presenter.cpp
++++ b/src/ui/d3d12/d3d12_presenter.cpp
+@@ -14,6 +14,7 @@
+ #include <cmath>
+ #include <memory>
+ #include <utility>
++#include "D:/Ben 10 recomp/native-rex/src/presentation_motion_audit.h"
+ 
+ #include <rex/assert.h>
+ #include <rex/cvar.h>
+@@ -588,12 +589,15 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
+   GuestOutputProperties guest_output_properties;
+   GuestOutputPaintConfig guest_output_paint_config;
+   Microsoft::WRL::ComPtr<ID3D12Resource> guest_output_resource;
++  uint64_t ben10_guest_submission=0;
+   {
+     uint32_t guest_output_mailbox_index;
+     std::unique_lock<std::mutex> guest_output_consumer_lock(ConsumeGuestOutput(
+         guest_output_mailbox_index, &guest_output_properties, &guest_output_paint_config));
+     if (guest_output_mailbox_index != UINT32_MAX) {
+       guest_output_resource = guest_output_resources_[guest_output_mailbox_index].second;
++      if(ben10_presentation_audit::audit.output)
++        ben10_guest_submission=guest_output_resources_[guest_output_mailbox_index].first;
+     }
+     // Incremented the reference count of the guest output resource - safe to
+     // leave the consumer critical section now as everything here either will be
+@@ -1155,9 +1159,16 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
+   // fullscreen is ever used in, the allow tearing flag must not be passed in
+   // fullscreen, but DXGI fullscreen is largely unneeded with the flip
+   // presentation model used in Direct3D 12).
+-  HRESULT present_result = paint_context_.swap_chain->Present(
+-      0, DXGI_PRESENT_RESTART |
+-             (paint_context_.swap_chain_allows_tearing ? DXGI_PRESENT_ALLOW_TEARING : 0));
++  const UINT ben10_present_flags=DXGI_PRESENT_RESTART |
++      (paint_context_.swap_chain_allows_tearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
++  const auto ben10_present_begin=ben10_presentation_audit::audit.output
++      ? ben10_presentation_audit::Audit::Clock::now()
++      : ben10_presentation_audit::Audit::Clock::time_point{};
++  HRESULT present_result=paint_context_.swap_chain->Present(0,ben10_present_flags);
++  if(ben10_presentation_audit::audit.output)
++    ben10_presentation_audit::audit.Observe(ben10_present_begin,
++        ben10_presentation_audit::Audit::Clock::now(),paint_context_.swap_chain.Get(),
++        ben10_guest_submission,0,ben10_present_flags,present_result);
+   // Even if presentation has failed, work might have been enqueued anyway
+   // internally before the failure according to Jesse Natalie from the DirectX
+   // Discord server.
+diff --git a/src/ui/imgui_drawer.cpp b/src/ui/imgui_drawer.cpp
+index f270f3c..40b29b2 100644
+--- a/src/ui/imgui_drawer.cpp
++++ b/src/ui/imgui_drawer.cpp
+@@ -436,7 +436,14 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
+   // it now if needed.
+   DetachIfLastDialogRemoved();
+ 
+-  if (!dialogs_.empty()) {
++  bool continuous_repaint = !dialogs_.empty();
++  if (std::getenv("BEN10_IDLE_NOTIFICATION_PACING")) {
++    continuous_repaint = false;
++    for (auto* dialog : dialogs_) {
++      if (dialog->NeedsContinuousRepaint()) { continuous_repaint = true; break; }
++    }
++  }
++  if (continuous_repaint) {
+     // Repaint (and handle input) continuously if still active. In detached mode
+     // there is no presenter; the app drives repaint via its own present loop.
+     if (presenter_) {
+diff --git a/src/ui/overlay/achievement_toast.cpp b/src/ui/overlay/achievement_toast.cpp
+index 53b8c0b..6bb12c6 100644
+--- a/src/ui/overlay/achievement_toast.cpp
++++ b/src/ui/overlay/achievement_toast.cpp
+@@ -29,6 +29,11 @@ void AchievementToastDialog::Push(const rex::system::AchievementEvent& event) {
+   queue_.push_back({event, std::chrono::steady_clock::now()});
+ }
+ 
++bool AchievementToastDialog::NeedsContinuousRepaint() {
++  std::lock_guard<std::mutex> lock(mutex_);
++  return !queue_.empty();
++}
++
+ void AchievementToastDialog::OnDraw(ImGuiIO& io) {
+   auto now = std::chrono::steady_clock::now();
+ 
+diff --git a/src/ui/rex_app.cpp b/src/ui/rex_app.cpp
+index b94fe9e..5733b29 100644
+--- a/src/ui/rex_app.cpp
++++ b/src/ui/rex_app.cpp
+@@ -440,7 +440,20 @@ void ReXApp::LaunchModule() {
+         runtime_->kernel_state()) {
+       std::weak_ptr<ui::AchievementNotificationDialog> notification = achievement_notification_;
+       achievement_notification_listener_ = achievements().RegisterNotificationCallback(
+-          [notification](const rex::system::AchievementEvent& event) {
++          [notification, context = &app_context(),
++           idle_pacing = bool(std::getenv("BEN10_IDLE_NOTIFICATION_PACING"))]
++          (const rex::system::AchievementEvent& event) {
++            if (idle_pacing) {
++              // The weak dialog prevents a deferred callback from accessing a
++              // destroyed window. Wake through the presenter on its UI thread.
++              context->CallInUIThreadDeferred([notification, event]() {
++                if (auto dialog = notification.lock()) {
++                  dialog->Push(event);
++                  dialog->RequestRepaintFromUIThread();
++                }
++              });
++              return;
++            }
+             if (auto dialog = notification.lock()) {
+               dialog->Push(event);
+             }

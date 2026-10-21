@@ -1,0 +1,15 @@
+build/
+data/
+installation/
+originals/
+iso/
+toolchain/
+third_party/
+native-rex/generated/default/
+*.iso
+*.xex
+*.pk4
+*.xbx
+*.wmv
+*.pdb
+__pycache__/
