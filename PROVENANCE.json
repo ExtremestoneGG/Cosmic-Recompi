@@ -3,7 +3,7 @@
     "origin": "https://github.com/rexglue/rexglue-sdk.git",
     "commit": "c94f5ebdcb3c9d1a460ca48e04f9758448f8d518",
     "local_patch": "sdk-patches/rex-sdk-local.diff",
-    "patch_sha256": "a6807bcc6cf6e02bdb3e093764d5ce67631179f6ffba9af0810932a53461a5ec"
+    "patch_sha256": "c99199c5620905a3ac71b7cb20e814b486112c6f9d63a8d2982cd316441ae998"
   },
   "submodules": [
     {
@@ -189,5 +189,12 @@
     "first_boss_death_null_call_fixed": false,
     "failure_only_diagnostics": true,
     "graphics_dll_changed": false
+  },
+  "source_correction": {
+    "archive": "CosmicRecomp-test-0.2.1-sdk-source-fix1.zip",
+    "reason": "Include the project-owned direct-resolve shader bytecode header and use an SDK-relative include.",
+    "game_binaries_changed": false,
+    "game_fps_gain_claimed": false,
+    "clean_machine_full_build_verified": false
   }
 }

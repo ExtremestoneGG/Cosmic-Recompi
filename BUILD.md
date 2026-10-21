@@ -41,6 +41,18 @@ cmake --build build/native --parallel 2
 
 The patch helper runs `git apply --check` and relocates diagnostic include paths to your checkout. Do not apply the patch to a different SDK revision without reviewing conflicts. SDK build details are in `CMakePresets.json` and `thirdparty/CMakeLists.txt`, also preserved in the corresponding-source archive.
 
+## Building from the complete SDK source archive
+
+Use `CosmicRecomp-test-0.2.1-sdk-source-fix1.zip` when rebuilding the published SDK. It supersedes the earlier 0.2.1 SDK source archive, which omitted the project-owned direct-resolve bytecode header and retained an include into a private research directory. The shader bytes and published game binaries are unchanged.
+
+After extracting the archive, run this from its root:
+
+```powershell
+python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer
+```
+
+The helper validates and relocates the SDK's diagnostic includes to the consumer headers bundled in that archive. The SDK patch is **already applied** in the archive; do not apply it again. For a pristine Git checkout, use the normal patch sequence above instead. Include closure and relocation were checked; a complete clean-machine build remains unverified.
+
 ## Native frontend and bridge
 
 Check out the UI dependency before configuring the frontend:
@@ -161,3 +173,5 @@ O pacote portátil fornece `BEN10_PORTABLE_ROOT` para separar `game`, `user`, `c
 Os scripts históricos de compilação do ambiente de desenvolvimento usam caminhos locais e não constituem um instalador universal de toolchain. Não foi verificada uma compilação em máquina limpa nesta primeira versão; o pacote binário e o importador foram testados no ambiente de desenvolvimento.
 
 Nunca envie ao Git arquivos de `originals`, `installation`, fontes PPC geradas, caches ou saves. Não use um ZIP recursivo da pasta de testes para montar uma release: a distribuição precisa de uma lista explícita de arquivos permitidos.
+
+Para recompilar a partir do arquivo completo de fontes do SDK, use `CosmicRecomp-test-0.2.1-sdk-source-fix1.zip`. Ele corrige um header de shader próprio ausente no pacote anterior, sem alterar os bytes do shader ou os binários do jogo. Após extrair, execute `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` na raiz do arquivo extraído. O diff já está aplicado nesse pacote. Os includes foram verificados; uma compilação completa em máquina limpa continua sem verificação.
