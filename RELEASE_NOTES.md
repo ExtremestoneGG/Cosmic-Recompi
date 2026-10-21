@@ -2,7 +2,13 @@
 
 <a id="english"></a>
 
-# v0.2.0-test.1 — launcher and original-menu video settings
+# v0.2.1-test.1 — gameplay callback fix and failure diagnostics
+
+The missing `0x8210BB88` callback is restored from the user's original executable and registered by static code generation. It passed 8,192 instruction-oracle cases, actual native dispatch/callee execution on an isolated guest allocation and a 180-second game smoke test. Prior callback fixes remain checked at startup.
+
+A **separate first-boss death crash at target zero remains under investigation**. Failure-only register and stack diagnostics are included for its next reproduction; this release does not claim that crash is fixed. See HOTFIX.md. Saves, graphics DLL and accumulated graphics optimizations are preserved. No new FPS gain is claimed.
+
+## Features retained from v0.2.0-test.1
 
 - Standalone Full Emerald-style Dear ImGui/SDL/OpenGL launcher: Play, Settings, Quit and Start directly in game. The frontend exits before gameplay; the game still uses ReXGlue Direct3D 12.
 - Choose an installation folder, import your supported ISO and find the actual save folder. Existing saves are preserved.
@@ -19,7 +25,13 @@ Bring your own supported copy. The package contains no ISO, XEX, original game a
 
 <a id="portugues"></a>
 
-# v0.2.0-test.1 — launcher e vídeo no menu original
+# v0.2.1-test.1 — correção de callback e diagnóstico de falha
+
+O callback ausente `0x8210BB88` foi restaurado e registrado. Passou em 8.192 casos de comparação com as instruções originais, execução nativa real sobre memória isolada e teste de jogo de 180 segundos. As correções anteriores continuam verificadas na inicialização.
+
+O **crash separado ao morrer no primeiro chefe, com alvo zero, continua em investigação**. Esta versão registra contexto/pilhas somente quando a falha ocorre para permitir sua reprodução e correção; não declara essa falha resolvida. Consulte HOTFIX.md. Saves, DLL da GPU e otimizações acumuladas foram preservados. Não há promessa de ganho novo de FPS.
+
+## Recursos mantidos da v0.2.0-test.1
 
 Launcher separado no estilo Full Emerald, com Play, Settings, Quit e início direto; ele encerra antes do jogo. A instalação pode ficar na pasta escolhida, e Settings mostra o local dos saves. VIDEO fica em OPTIONS, com presets de 720p a 4K e limites internos de 30/60 FPS. O padrão é 30; 60 é experimental e ilimitado está desativado. QUIT TO LAUNCHER fica separado de QUIT e usa confirmação.
 

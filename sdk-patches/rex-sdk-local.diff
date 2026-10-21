@@ -2144,6 +2144,30 @@ index e69de29..0000000
 diff --git a/src/graphics/shaders/bytecode/d3d12_5_1/ben10_texture_direct_uav_e2_cs.h b/src/graphics/shaders/bytecode/d3d12_5_1/ben10_texture_direct_uav_e2_cs.h
 deleted file mode 100644
 index e69de29..0000000
+diff --git a/src/system/function_dispatcher.cpp b/src/system/function_dispatcher.cpp
+index bd43109..a3b2a44 100644
+--- a/src/system/function_dispatcher.cpp
++++ b/src/system/function_dispatcher.cpp
+@@ -22,6 +22,7 @@
+ #include <rex/runtime.h>
+ #include <rex/system/function_dispatcher.h>
+ #include <rex/system/thread_state.h>
++#include "D:/Ben 10 recomp/native-rex/src/invalid_dispatch_diagnostics.h"
+ 
+ namespace rex::runtime {
+ 
+@@ -34,7 +35,10 @@ FunctionDispatcher* GetBoundFunctionDispatcher() {
+ 
+ }  // namespace
+ 
+-static void InvalidFunctionTrap(PPCContext& ctx, uint8_t* /*base*/) {
++static void InvalidFunctionTrap(PPCContext& ctx, uint8_t* base) {
++  ben10_diagnostics::InvalidDispatch(ctx,base,[](const char* message) {
++    REXLOG_ERROR("{}",message);
++  });
+   REX_FATAL("Call to invalid or unregistered function at guest address 0x{:08X}",
+             ctx.last_indirect_target);
+ }
 diff --git a/src/ui/d3d12/d3d12_presenter.cpp b/src/ui/d3d12/d3d12_presenter.cpp
 index 306118e..0b2dfd3 100644
 --- a/src/ui/d3d12/d3d12_presenter.cpp

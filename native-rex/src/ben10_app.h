@@ -8,6 +8,7 @@
 #include <rex/runtime.h>
 #include <rex/system/interfaces/graphics.h>
 #include <rex/system/gpu_plugin.h>
+#include <rex/system/function_dispatcher.h>
 #include <rex/ui/presenter.h>
 #include <fstream>
 #include <thread>
@@ -274,6 +275,30 @@ class Ben10App : public rex::ReXApp {
   }
 
   void OnPostSetup() override {
+    for(uint32_t address : {0x8210BB88u,0x8229A9F8u,0x8229AA20u,0x8229AA48u,
+                            0x8229AA60u,0x8229AA78u,0x8229AA90u,0x8229AAA8u}) {
+      if(!runtime()->function_dispatcher()->GetFunction(address))
+        throw std::runtime_error("Required gameplay callback is not registered");
+    }
+    REXLOG_INFO("Reviewed gameplay callbacks registered, including 8210BB88 and 8229AA60");
+    if(std::getenv("BEN10_CALLBACK_SELF_TEST")) {
+      auto* memory=runtime()->memory();
+      const uint32_t object=memory->SystemHeapAlloc(1408);
+      if(!object)throw std::runtime_error("Callback self-test allocation failed");
+      auto* base=memory->virtual_membase();
+      std::memset(base+object,0x5A,1408);
+      PPCContext context{};
+      context.r3.u64=0xDEADBEEF;context.r4.u64=object;
+      context.lr=0x82345678;context.ctr.u64=0x82100000;
+      runtime()->function_dispatcher()->GetFunction(0x8210BB88)(context,base);
+      bool valid=context.r3.u64==object && context.r4.u64==0 &&
+                 context.lr==0x82345678 && context.ctr.u64==0x82100000;
+      for(uint32_t i=0;i<1408;++i)
+        valid &= base[object+i]==(i>=1320 && i<1324 ? 0 : 0x5A);
+      memory->SystemHeapFree(object);
+      if(!valid)throw std::runtime_error("Native gameplay callback self-test failed");
+      REXLOG_INFO("Native callback 8210BB88 self-test passed: registered dispatch, real callee, isolated memory write, LR/CTR preserved");
+    }
     // Presentation/dialogs are created before Runtime. Bind only after setup.
     if(ben10_pc_menu::enabled()) {
       ben10_pc_menu::runtime=runtime();

@@ -1,2 +1,3 @@
 * text=auto eol=lf
 LICENSES/** -whitespace
+sdk-patches/** -whitespace

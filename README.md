@@ -54,6 +54,7 @@ To update, extract the new release into a separate program folder and select the
 - The full campaign, all checkpoints, and all GPUs are **not** validated. Performance depends on hardware; **stable 60 FPS has not been achieved/verified**.
 - Video settings expose 30/60 FPS caps; choosing 60 does not guarantee 60 FPS performance or eliminate the remaining camera issues above 30 FPS. Translation coverage, validation and overall compatibility are separate measures.
 - An extra achievements menu is deferred.
+- The gameplay callback crash at `0x8210BB88` is corrected in v0.2.1-test.1. A separate crash reported when dying at the first boss (`0x00000000`) remains under investigation; failure-only register/stack diagnostics are included. See [hotfix details](HOTFIX.md).
 
 ## Reporting problems
 
@@ -80,6 +81,8 @@ Project-owned code is BSD-3-Clause; third-party components retain their own term
 # Cosmic Recomp
 
 Recompilação nativa experimental de **Ben 10 Ultimate Alien: Cosmic Destruction**, edição Xbox 360, para Windows 10/11 x64. Baseada no SDK ReXGlue, com Direct3D 12, áudio e controles do SDK.
+
+A versão v0.2.1-test.1 corrige o callback ausente `0x8210BB88`. O crash separado ao morrer no primeiro chefe (`0x00000000`) continua em investigação, com diagnóstico ampliado no log. Consulte [os detalhes](HOTFIX.md).
 
 **Você precisa fornecer sua própria cópia do jogo.** Este repositório e os pacotes de distribuição não contêm ISO, XEX, recursos originais, saves pessoais ou fontes PowerPC recompiladas geradas.
 

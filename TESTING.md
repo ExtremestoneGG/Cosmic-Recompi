@@ -4,6 +4,8 @@
 
 # Test scope
 
+For v0.2.1-test.1: the restored `0x8210BB88` callback passed 8,192 comparisons with an interpreter of its original instructions. The actual registered native callback also ran against a private guest allocation, invoking the original callee and changing only its expected field. The resulting game ran a 180-second isolated smoke test. The real SDK invalid-dispatch trap was exercised in a disposable probe: it wrote register/guest-stack/native-stack context and still failed normally. These tests do **not** reproduce or fix the separate first-boss death crash at address zero.
+
 This test release is not a campaign-completion claim.
 
 Verified locally:

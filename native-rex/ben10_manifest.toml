@@ -44,6 +44,9 @@ includes = ["config/adjustors.toml"]
 0x8229AA78 = { size = 24 }
 0x8229AA90 = { size = 24 }
 0x8229AAA8 = { size = 24 }
+# Gameplay callback reached in the public test build. Original three-instruction
+# wrapper: r3=r4; r4=0; tail branch to 0x82132D38. Padding starts at 0x8210BB94.
+0x8210BB88 = { size = 12 }
 
 [[entrypoint.midasm_hook]]
 address = 0x8248B594

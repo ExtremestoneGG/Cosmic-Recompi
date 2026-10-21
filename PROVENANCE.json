@@ -3,7 +3,7 @@
     "origin": "https://github.com/rexglue/rexglue-sdk.git",
     "commit": "c94f5ebdcb3c9d1a460ca48e04f9758448f8d518",
     "local_patch": "sdk-patches/rex-sdk-local.diff",
-    "patch_sha256": "0bb1a58b305cae58927cdd78107119fc0c798967cfb28ab37f2a1df9c9e05290"
+    "patch_sha256": "a6807bcc6cf6e02bdb3e093764d5ce67631179f6ffba9af0810932a53461a5ec"
   },
   "submodules": [
     {
@@ -100,7 +100,7 @@
   "runtime_files": [
     {
       "name": "ben10.exe",
-      "sha256": "ee96d965021fae484b7c34414c8718bd1894e54bd8eb06ca98d09f75cb458a9f"
+      "sha256": "f2c7d61bd96e913a96ad1a741e9c0c2a2d5a631cef4a37a98bb35f56385ae964"
     },
     {
       "name": "concrt140.dll",
@@ -136,7 +136,7 @@
     },
     {
       "name": "rexruntime.dll",
-      "sha256": "e2af79fff1f17ecc72ba62fbd6059703b91328dcae3c1c936d32aae54ed0475c"
+      "sha256": "132db973604271a7e78b72831012f6a8641047d7604f5a0f83e9806cf7b6333d"
     },
     {
       "name": "vccorlib140.dll",
@@ -171,6 +171,7 @@
     ],
     "game_assets_included": false
   },
+  "release": "v0.2.1-test.1",
   "frontend_files": [
     {
       "name": "CosmicRecomp.exe",
@@ -181,5 +182,12 @@
       "sha256": "6f9072a5ab49e61cba7fff36197624b47071531bb0343a96eaa464ea3298390c"
     }
   ],
-  "release": "v0.2.0-test.1"
+  "correctness_hotfix": {
+    "missing_callback": "0x8210BB88",
+    "original_instruction_cases": 8192,
+    "native_dispatch_test": true,
+    "first_boss_death_null_call_fixed": false,
+    "failure_only_diagnostics": true,
+    "graphics_dll_changed": false
+  }
 }
