@@ -17,8 +17,8 @@ foreach ($line in [IO.File]::ReadAllLines($patch)) {
     if (!$path.StartsWith($Sdk + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Caminho invalido no diff.' }
     if (!(Test-Path -LiteralPath $path -PathType Leaf)) { continue }
     $text = [IO.File]::ReadAllText($path)
-    if ($text.Contains('D:/Ben 10 recomp/native-rex/src/')) {
-        [IO.File]::WriteAllText($path,$text.Replace('D:/Ben 10 recomp/native-rex/src/',$prefix),[Text.UTF8Encoding]::new($false))
-    }
+    $adjusted = [regex]::Replace($text,'@COSMIC_CONSUMER@/',[System.Text.RegularExpressions.MatchEvaluator]{param($match) $prefix})
+    $adjusted = [regex]::Replace($adjusted,'[A-Za-z]:/[^"\r\n]*/native-rex/src/',[System.Text.RegularExpressions.MatchEvaluator]{param($match) $prefix})
+    if ($adjusted -ne $text) {[IO.File]::WriteAllText($path,$adjusted,[Text.UTF8Encoding]::new($false))}
 }
 Write-Output 'Diff aplicado e includes de integracao ajustados para este checkout.'

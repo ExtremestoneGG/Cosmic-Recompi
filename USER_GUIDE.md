@@ -1,69 +1,50 @@
 [English](#english) | [Português (Brasil)](#portugues)
 
 <a id="english"></a>
-
 # User guide
 
-## First run
+## Prepare your copy
 
-Extract the complete release ZIP. Start `CosmicRecomp.exe`; do not start the runtime executable manually. Settings contains **Installation folder**, **Select ISO** and **Open saves**. Choose a writable destination before importing if you do not want the default `installation` directory beside the program.
+Download the portable Windows EXE from Releases. Place it in a writable folder on any drive; it expands its versioned host files under `CosmicRecomp/app` and uses `CosmicRecomp/game-data` for the shared installation. Avoid protected system folders. Do not mix runtime files from different releases.
 
-Select your own Xbox 360 ISO. The importer reads it without modifying it, checks the supported executable revision and extracts resources into a new staging directory. Only a completed import becomes the active game directory. An existing import is preserved rather than overwritten. A failed import can leave a partial staging directory for inspection; it is not considered playable.
+Open Settings → Select ISO. Acceptance verifies the supported executable before extraction; it does not prove gameplay compatibility. Then choose Prepare game and wait for completion. The importer reads your ISO without changing it, stages extracted assets and activates only a completed import. It uses an included precompiled runtime, with no local C++ compiler required. Allow approximately 6 GB beyond the ISO and caches. A desktop shortcut is created after import.
 
-The package includes the compiled native program for one recognized revision. Import does not download a game or install a compiler. Other revisions need their own analysis, code generation and validation.
+Only the Xbox 360 executable revision identified by the importer's embedded SHA-256 check is supported. Other revisions require separate code generation and validation. The exact digest is in `launcher/InstalledGame.cs`; an unsupported ISO must not be forced through the check.
 
-## Launcher controls
+Click Play to start. The standalone OpenGL launcher exits; a small non-rendering bridge owns the installation lock and handles return requests. The native game uses the ReXGlue Direct3D 12 backend. Start directly in game has been removed.
 
-Use mouse, keyboard navigation or a supported gamepad for Play, Settings and Quit. File and folder selection use Windows dialogs. **Start directly in game** remembers your preference beside the launcher. When enabled, opening the program starts the recognized installation directly, without creating the frontend graphics context.
+## Video and input
 
-The frontend exits completely before the game starts. A small bridge waits without rendering to own the installation lock and handle return requests. The game runs in its own process using Direct3D 12.
+Launcher Settings and the original game's Options → Video share `user/pc-video.ini`. Select 720p, 1080p, 1440p or 4K and 30, 60 or Unlimited FPS. The 30 FPS default uses internal pacing; 60/Unlimited are experimental and may expose cadence/judder problems. A cap is not a performance guarantee. Resolution applies at the next game start; live resolution and extra fullscreen modes are not available in this release. The game overlay counts guest frame submissions and shows frame times; it is not a guarantee that every submitted frame is a unique monitor image.
 
-## Video settings
+Gameplay → All Aliens is OFF by default. Hold LT and tap RT to cycle the original four forms, four additional forms and the remaining two. RT cannot activate the ability menu while LT is held. Releasing LT restores the original four slots. Rath is explicitly disabled in this public test, including old saved slots; Four Arms is absent. All Aliens transformations/resource lifetime remain experimental. Turn it OFF to use the baseline roster path.
 
-Open **Start → Options → Video**. Resolution presets are 1280×720, 1920×1080, 2560×1440 and 3840×2160. These are the SDK's guest-video-mode/startup-window presets; do not assume they independently implement a new internal supersampling renderer. No preset below the game's native 1280×720 is offered.
+Quit to launcher requests exit through the bridge and reopens the frontend. It does not guarantee a new save: use the game's own save/checkpoint first. Save/Continue was manually verified in an earlier test, but full-campaign and every death/reload path are not validated.
 
-Choose 30 or 60 FPS and select **Apply**. The cap takes effect through the internal frame pacer. Resolution is saved for the next start. **Uncapped** is visible but unavailable. Use Back or the controller's cancel button to return to the game's Options menu.
+## Saves, logs and updates
 
-30 FPS is the default. The 60 FPS setting is experimental: it does not guarantee sufficient rendering performance or fix all camera instability above 30 FPS. The FPS overlay measures guest game submissions, not repeated desktop/window presents. It is normal for the game counter to stop while the native video dialog deliberately pauses guest menu execution.
+For the portable EXE, saves are under `CosmicRecomp/game-data/user`. For a manually staged ZIP, they are under `installation/user` beside the launcher unless an existing installation path was configured. Settings displays the actual save directory and offers Open saves. Preserve the whole user directory when updating; do not copy only one file from a multi-file save.
 
-## Leaving the game
+Close the game before making a backup. To reset, rename `user` to `user-backup` while it is closed; this preserves a reversible copy. No in-game Wipe data option is promised by this release.
 
-The original **Quit** action keeps its original meaning. **Quit to Launcher** is a separate nearby action; confirm the game's warning to return to the frontend. Save/checkpoint first if you want to preserve recent progress. Return forces the frontend to appear even if direct-start is enabled.
+Setup failures: `CosmicRecomp/logs/setup.log`. Game/startup failures: the installation's `logs/launcher.log`, `logs/startup-output.log`, `logs/runtime.log`. Early Windows/D3D failures may occur before runtime.log exists; include launcher.log and startup-output.log in a report. State what you selected, the last visible scene, whether All Aliens was ON, and your GPU/Windows version. Remove personal paths before posting logs publicly.
 
-## Storage
+## Optional translation tables
 
-| Location | Purpose |
-|---|---|
-| `<installation>/game` | Imported original resources; local menu extensions and their original backups |
-| `<installation>/user` | Original game saves and PC preferences |
-| `<installation>/user/pc-video.ini` | PC resolution and cap only |
-| `<installation>/cache` | Regenerable runtime/shader cache |
-| `<installation>/logs/runtime.log` | Local diagnostic log |
-| `<program>/installation-path.txt` | Chosen installation path |
-| `<program>/launcher-preferences.ini` | Direct-start preference |
-
-Settings displays the actual save path. Preserve `user` when updating or moving resources. Changing the selected folder does not automatically move or delete the old installation.
-
-To reset game progress, close the game and rename `user` to `user-backup`. Keep the backup. To reset only PC video settings, rename `pc-video.ini` instead. Never upload your installation or saves with a bug report.
-
-## Updating
-
-Extract a new release into a separate program directory, open Settings and select the existing installation. Keep the old program until the new one works. Do not mix runtime DLLs or executables from different releases. Runtime checksums detect incomplete or mixed packages; they are not DRM and may be regenerated when intentionally rebuilding dependencies.
+After import, Settings → Add translation patch accepts a user-supplied `global/scripts/xbx_us.txt` table. The native menu labels are merged into the table; original backups are retained. This is translation-table support, not a universal binary/XEX patch engine. The separately distributed `X360-Ben-10-Ultimate-Alien-Cosmic-Destruction-USA-Traducao-PT-BR-V1.0-XEX-BRASIL` patch is the local compatibility reference; obtain it from its authors. No patch files are hosted here. Compatibility with every revision is not guaranteed.
 
 ---
-
 <a id="portugues"></a>
+# Guia em português
 
-# Guia de uso
+Baixe o EXE portátil, coloque em uma pasta gravável de qualquer disco e execute. Em Settings → Select ISO, selecione sua cópia compatível. Depois da aceitação, clique em Prepare game e aguarde o progresso. O programa importa os dados para um runtime já compilado; não compila C++ no PC do usuário nem altera a ISO. Após preparar, clique em Play. O launcher fecha e o jogo abre em processo separado. Um atalho é criado após a importação.
 
-Extraia todo o ZIP e abra `CosmicRecomp.exe`. Em Settings, escolha uma pasta gravável e selecione sua própria ISO. A edição é verificada antes da importação. Uma instalação existente é preservada; arquivos parciais de uma falha não viram uma instalação pronta.
+As configurações de vídeo ficam tanto no launcher quanto no menu original Options → Video. Há 720p/1080p/1440p/4K e 30/60/Unlimited FPS. O padrão é 30, com limite interno. 60/Unlimited são experimentais e podem apresentar problemas de cadência; a resolução exige reinício. O contador mostra submissões de quadros do jogo, sem garantir imagens únicas no monitor.
 
-Play inicia o jogo e encerra o processo gráfico do launcher. Uma ponte pequena, sem renderização, aguarda o encerramento e trata o retorno. **Start directly in game** permite pular a interface nos próximos inícios. As escolhas de arquivos e pastas usam os diálogos do Windows.
+Gameplay → All Aliens começa desligado. Segure LT e toque RT para alternar 4 + 4 + 2 formas. Enquanto LT estiver pressionado, RT não aciona as habilidades. Soltar LT restaura os quatro slots originais. Rath está desativado nesta versão, mesmo para saves que o selecionaram. Quatro Braços não está incluído. As transformações e o ciclo de recursos do All Aliens ainda são experimentais.
 
-No jogo, use **Start → Options → Video**. Apply salva resolução e limite de 30/60 FPS. A resolução é aplicada no próximo início; o limite usa o temporizador interno. Ilimitado está desativado. Os presets configuram o modo de vídeo/janela do SDK; não representam a criação de um renderer próprio de supersampling. A menor opção é 1280×720.
+No pacote portátil, preserve `CosmicRecomp/game-data/user` ao atualizar. Settings mostra a pasta real e permite abri-la. Feche o jogo antes de copiar os saves. Para resetar sem perder a cópia, renomeie a pasta user para user-backup. Quit to launcher não substitui o save/checkpoint do próprio jogo.
 
-30 FPS é o padrão. 60 continua experimental e não garante desempenho ou estabilidade completa da câmera. O contador considera submissões do jogo, sem contar repetições da janela.
+Logs da preparação ficam em `CosmicRecomp/logs`. Logs do jogo e da tentativa de iniciá-lo ficam em `CosmicRecomp/game-data/logs`. Envie launcher.log e startup-output.log mesmo quando runtime.log estiver vazio. Informe a ação, a fase, se All Aliens estava ligado e a versão do Windows/GPU. Remova dados pessoais antes de publicar os logs.
 
-**Quit to Launcher** fica separado de **Quit**. Confirme o aviso do jogo após salvar seu progresso. O launcher reaparece mesmo com início direto marcado.
-
-Saves ficam em `<instalação>/user`; Settings mostra o caminho completo. `pc-video.ini` contém apenas as preferências de vídeo do PC. Para resetar, feche o jogo e renomeie a pasta/arquivo que quiser resetar, guardando a cópia. Atualize extraindo o programa separadamente e selecionando a instalação existente. Não misture DLLs de versões diferentes nem envie recursos ou saves nas issues.
+Settings → Add translation patch aceita a tabela `global/scripts/xbx_us.txt` fornecida pelo usuário. Não é um instalador universal de patches binários ou XEX. A tradução PT-BR XEX-BRASIL foi usada como referência local; obtenha o patch com seus autores. Nenhum arquivo da tradução é distribuído pelo projeto. Consulte as limitações em RELEASE_NOTES.md.

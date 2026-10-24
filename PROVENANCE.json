@@ -3,7 +3,8 @@
     "origin": "https://github.com/rexglue/rexglue-sdk.git",
     "commit": "c94f5ebdcb3c9d1a460ca48e04f9758448f8d518",
     "local_patch": "sdk-patches/rex-sdk-local.diff",
-    "patch_sha256": "c99199c5620905a3ac71b7cb20e814b486112c6f9d63a8d2982cd316441ae998"
+    "patch_sha256": "97e25859f571474a331bf6c91b1aae6ef9cd6f964f3271faf418008e66d4fb0d",
+    "diagnostic_include_paths": "Relocatable @COSMIC_CONSUMER@/ placeholder; no SDK algorithm change"
   },
   "submodules": [
     {
@@ -100,7 +101,7 @@
   "runtime_files": [
     {
       "name": "ben10.exe",
-      "sha256": "f2c7d61bd96e913a96ad1a741e9c0c2a2d5a631cef4a37a98bb35f56385ae964"
+      "sha256": "12dbad086022a20710d810655c803b4353540395ddb0e63f72e7acc24008dd73"
     },
     {
       "name": "concrt140.dll",
@@ -128,7 +129,7 @@
     },
     {
       "name": "pc-menu-api.txt",
-      "sha256": "f1b2f662800122bed0ff255693df89c4487fbdcf453d3524a42d4ec20c3d9c04"
+      "sha256": "24ba1e99dc06b19351323aae0d7370243d586475a634b7f6ff7927fbc72cfaed"
     },
     {
       "name": "rexgpu-xenos.dll",
@@ -171,15 +172,15 @@
     ],
     "game_assets_included": false
   },
-  "release": "v0.2.1-test.1",
+  "release": "v0.3.0-test.1",
   "frontend_files": [
     {
       "name": "CosmicRecomp.exe",
-      "sha256": "9c82a03d0457f8495c47d0e980af4807248dba3585a1591f126791cfe0ac84fc"
+      "sha256": "dec866d2fd649e56465051be7b14e6a19ba3ab5396f91a9d9bd07bfe37236389"
     },
     {
       "name": "CosmicBridge.exe",
-      "sha256": "6f9072a5ab49e61cba7fff36197624b47071531bb0343a96eaa464ea3298390c"
+      "sha256": "4d8f7abdfcf327e6129d5d1ac1dd93ff351944660189bcfe92bbd9dae691c603"
     }
   ],
   "correctness_hotfix": {
@@ -196,5 +197,24 @@
     "game_binaries_changed": false,
     "game_fps_gain_claimed": false,
     "clean_machine_full_build_verified": false
+  },
+  "release_policy": {
+    "Rath_disabled": true,
+    "All_Aliens_available": true,
+    "All_Aliens_default": "OFF",
+    "roster_policy": "4+4+2 for a normal four-form preset",
+    "native_heap_MiB": 64,
+    "RT_ability_suppression_while_LT": true,
+    "failed_animation_lookup_experiment_included": false
+  },
+  "validation": {
+    "Rath_exclusion_policy_tests": true,
+    "prior_user_Save_Continue": true,
+    "full_campaign": false,
+    "stable_60_FPS": false,
+    "user_report": "Other forms working; Rath selection crashes",
+    "automated_extra_form_probe": "Armodrillo-linked animation A955F0D1 missing; open issue, not a pass",
+    "Rath_crash_fixed": false,
+    "complete_clean_machine_rebuild": false
   }
 }

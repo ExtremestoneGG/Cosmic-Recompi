@@ -13,6 +13,8 @@ if (-not (Test-Path -LiteralPath "$root\third_party\full-emerald-ui\src\common\l
 if ($LASTEXITCODE -ne 0) { throw 'Frontend configuration failed.' }
 & cmake --build $out --parallel 2
 if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
-& $compiler /nologo /optimize+ /target:winexe /platform:x64 /reference:System.Windows.Forms.dll "/out:$out\CosmicBridge.exe" "$root\launcher\IsoImage.cs" "$root\launcher\InstalledGame.cs" "$root\launcher\GameMenuPatch.cs" "$root\launcher\NativeBridge.cs"
+& python "$root\tools\build_release_bridge.py"
+if ($LASTEXITCODE -ne 0) { throw 'Rath-disabled release bridge build failed.' }
+Copy-Item -LiteralPath "$root\build\rath-disabled-release\CosmicBridge.exe" -Destination "$out\CosmicBridge.exe" -Force
 if ($LASTEXITCODE -ne 0) { throw 'Process bridge build failed.' }
 Write-Output "Built CosmicRecomp.exe and CosmicBridge.exe in $out"

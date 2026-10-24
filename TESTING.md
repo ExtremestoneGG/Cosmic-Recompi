@@ -1,4 +1,20 @@
-[English](#english) | [Português (Brasil)](#portugues)
+# v0.3.0-test.1 validation scope
+
+The Rath-disabled profile has automated authored-VM tests (three enum identities, ten selectable forms, twelve load completions and balanced unloads), C# installer/backup/idempotency checks and guards in all four original transformation selection paths. These are policy and integration checks, not proof of every form's gameplay.
+
+Rath's transformation repeatedly failed on a missing resource before appearance. It is excluded, not fixed. A speculative animation lookup change did not help and is absent from this release. The RT conflict change filters only the state delivered to the original game, leaving raw RT edges available for page selection.
+
+Earlier user checks confirmed original Video menu interaction, gamepad input and Save/Continue. Full campaign, boss death/reload, all All Aliens forms and stable 60 FPS remain unverified. This release makes no new FPS-gain claim. Additional native probe results are recorded in the release provenance; do not turn a partial or interrupted probe into a pass.
+
+## Português
+
+Os testes automáticos verificam a exclusão do Rath, o programa próprio, a instalação, backups e os quatro caminhos de seleção. Não comprovam todas as transformações. O crash do Rath foi reproduzido, e ele está excluído, não corrigido. O teste especulativo de busca de animação foi removido. Menu Video, controle e Save/Continue tiveram confirmação anterior do usuário. A campanha, morte/reload, todos os aliens e 60 FPS estáveis continuam sem validação completa.
+
+---
+
+## Earlier validation history
+
+[English](#english) | [PortuguÃªs (Brasil)](#portugues)
 
 <a id="english"></a>
 
@@ -31,10 +47,10 @@ Keep an optimization only after improvement exceeds observed variation and its r
 
 # Escopo dos testes
 
-Foram verificados a importação da edição suportada (caminhos, tamanhos e hash do executável), save seguido de reinício e Continuar, nove casos do leitor de ISO e oito verificações do patch de menus. Duas implementações independentes produziram o mesmo bytecode, preservando backups e saves.
+Foram verificados a importaÃ§Ã£o da ediÃ§Ã£o suportada (caminhos, tamanhos e hash do executÃ¡vel), save seguido de reinÃ­cio e Continuar, nove casos do leitor de ISO e oito verificaÃ§Ãµes do patch de menus. Duas implementaÃ§Ãµes independentes produziram o mesmo bytecode, preservando backups e saves.
 
-A reprodução automática abriu VIDEO dentro de OPTIONS, salvou 1080p / 60 FPS e retornou ao menu original. QUIT e QUIT TO LAUNCHER são opções separadas. O frontend SDL/OpenGL foi renderizado separadamente do jogo Direct3D 12.
+A reproduÃ§Ã£o automÃ¡tica abriu VIDEO dentro de OPTIONS, salvou 1080p / 60 FPS e retornou ao menu original. QUIT e QUIT TO LAUNCHER sÃ£o opÃ§Ãµes separadas. O frontend SDL/OpenGL foi renderizado separadamente do jogo Direct3D 12.
 
-O temporizador isolado mediu cerca de 33,345 ms a 30 Hz e 16,681 ms a 60 Hz; isso não comprova FPS em gameplay. Campanha completa, todos os checkpoints, outras GPUs, compilação integral em máquina limpa e 60 FPS sustentados continuam sem validação. A opção de 60 FPS é experimental; FPS ilimitado está desativado.
+O temporizador isolado mediu cerca de 33,345 ms a 30 Hz e 16,681 ms a 60 Hz; isso nÃ£o comprova FPS em gameplay. Campanha completa, todos os checkpoints, outras GPUs, compilaÃ§Ã£o integral em mÃ¡quina limpa e 60 FPS sustentados continuam sem validaÃ§Ã£o. A opÃ§Ã£o de 60 FPS Ã© experimental; FPS ilimitado estÃ¡ desativado.
 
-Informe versão, GPU/driver, cena, resolução, limite, cache e duração ao reportar problemas. Inclua percentis dos tempos de quadro. Remova dados pessoais e não publique recursos originais ou saves.
+Informe versÃ£o, GPU/driver, cena, resoluÃ§Ã£o, limite, cache e duraÃ§Ã£o ao reportar problemas. Inclua percentis dos tempos de quadro. Remova dados pessoais e nÃ£o publique recursos originais ou saves.

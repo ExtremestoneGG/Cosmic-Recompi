@@ -291,12 +291,12 @@ index 19874a5..5786604 100644
  #include <sstream>
  #include <utility>
  
-+#include "D:/Ben 10 recomp/native-rex/src/d3d12_profile.h"
-+#include "D:/Ben 10 recomp/native-rex/src/barrier_batch_audit.h"
-+#include "D:/Ben 10 recomp/native-rex/src/d3d12_draw_profile.h"
-+#include "D:/Ben 10 recomp/native-rex/src/rtv_stencil_audit.h"
-+#include "D:/Ben 10 recomp/native-rex/src/d3d12_work_profile.h"
-+#include "D:/Ben 10 recomp/native-rex/src/camera_motion_audit.h"
++#include "@COSMIC_CONSUMER@/d3d12_profile.h"
++#include "@COSMIC_CONSUMER@/barrier_batch_audit.h"
++#include "@COSMIC_CONSUMER@/d3d12_draw_profile.h"
++#include "@COSMIC_CONSUMER@/rtv_stencil_audit.h"
++#include "@COSMIC_CONSUMER@/d3d12_work_profile.h"
++#include "@COSMIC_CONSUMER@/camera_motion_audit.h"
  #include <rex/assert.h>
  #include <rex/cvar.h>
  #include <rex/dbg.h>
@@ -624,7 +624,7 @@ index e6d6277..a0b24de 100644
   * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
   */
  
-+#include "D:/Ben 10 recomp/native-rex/src/d3d12_work_profile.h"
++#include "@COSMIC_CONSUMER@/d3d12_work_profile.h"
  #include <rex/assert.h>
  #include <rex/dbg.h>
  #include <rex/graphics/d3d12/command_processor.h>
@@ -920,9 +920,9 @@ index dd321a5..fbb547b 100644
  #include <tuple>
  #include <utility>
  
-+#include "D:/Ben 10 recomp/native-rex/src/resolve_layout_audit.h"
-+#include "D:/Ben 10 recomp/native-rex/src/depth_clear_audit.h"
-+#include "D:/Ben 10 recomp/native-rex/src/d3d12_profile.h"
++#include "@COSMIC_CONSUMER@/resolve_layout_audit.h"
++#include "@COSMIC_CONSUMER@/depth_clear_audit.h"
++#include "@COSMIC_CONSUMER@/d3d12_profile.h"
 +#include <cstring>
  #include <rex/assert.h>
  #include <rex/cvar.h>
@@ -1224,7 +1224,7 @@ index a5c97a0..3ef4ade 100644
   * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
   */
  
-+#include "D:/Ben 10 recomp/native-rex/src/upload_audit.h"
++#include "@COSMIC_CONSUMER@/upload_audit.h"
 +#include <cstdlib>
  #include <cstring>
  #include <utility>
@@ -1305,7 +1305,7 @@ index 2be0e8e..756aa45 100644
   * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
   */
  
-+#include "D:/Ben 10 recomp/native-rex/src/texture_load_audit.h"
++#include "@COSMIC_CONSUMER@/texture_load_audit.h"
  #include <algorithm>
  #include <array>
  #include <cfloat>
@@ -1397,7 +1397,7 @@ index 8f2fcb0..d838fce 100644
   * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
   */
  
-+#include "D:/Ben 10 recomp/native-rex/src/vblank_audit.h"
++#include "@COSMIC_CONSUMER@/vblank_audit.h"
  #include <rex/graphics/graphics_system.h>
  
  #include <algorithm>
@@ -1438,7 +1438,7 @@ index 953c5fd..59053d6 100644
  #include <unordered_set>
  #include <utility>
  
-+#include "D:/Ben 10 recomp/native-rex/src/depth_transfer_audit.h"
++#include "@COSMIC_CONSUMER@/depth_transfer_audit.h"
  #include <rex/assert.h>
  #include <rex/cvar.h>
  #include <rex/graphics/flags.h>
@@ -3605,7 +3605,7 @@ index bd43109..a3b2a44 100644
  #include <rex/runtime.h>
  #include <rex/system/function_dispatcher.h>
  #include <rex/system/thread_state.h>
-+#include "D:/Ben 10 recomp/native-rex/src/invalid_dispatch_diagnostics.h"
++#include "@COSMIC_CONSUMER@/invalid_dispatch_diagnostics.h"
  
  namespace rex::runtime {
  
@@ -3629,7 +3629,7 @@ index 306118e..0b2dfd3 100644
  #include <cmath>
  #include <memory>
  #include <utility>
-+#include "D:/Ben 10 recomp/native-rex/src/presentation_motion_audit.h"
++#include "@COSMIC_CONSUMER@/presentation_motion_audit.h"
  
  #include <rex/assert.h>
  #include <rex/cvar.h>

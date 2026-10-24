@@ -7,6 +7,12 @@ using System.Text;
 
 namespace CosmicRecompi {
     internal static class InstalledGame {
+        internal static string LauncherLog(string root) {
+            try {
+                string logs=Path.Combine(Installation(root),"logs");Directory.CreateDirectory(logs);
+                return Path.Combine(logs,"launcher.log");
+            }catch{return Path.Combine(root,"launcher.log");}
+        }
         public static string Installation(string root) {
             string preference = Path.Combine(root, "installation-path.txt");
             if (File.Exists(preference)) {
@@ -64,6 +70,16 @@ namespace CosmicRecompi {
             File.WriteAllText(Path.Combine(folder, "installed.txt"), "Cosmic Recomp test-0.1\r\n" + IsoImage.SupportedXexSha256 + "\r\n", new UTF8Encoding(false));
         }
         public static Process Start(string root, bool uncapped, string returnToLauncherEvent = null, Action prepareGameMenu = null, Action<ProcessStartInfo> configureProcess = null) {
+            string diagnostics=LauncherLog(root);
+            try {
+                File.AppendAllText(diagnostics,DateTime.UtcNow.ToString("o")+" Starting game verification."+Environment.NewLine);
+                return StartCore(root,uncapped,returnToLauncherEvent,prepareGameMenu,configureProcess,diagnostics);
+            } catch(Exception error) {
+                try {File.AppendAllText(diagnostics,DateTime.UtcNow.ToString("o")+" Launch failed: "+error+Environment.NewLine);} catch {}
+                throw new IOException("The game could not start. Startup diagnostics: "+diagnostics,error);
+            }
+        }
+        static Process StartCore(string root, bool uncapped, string returnToLauncherEvent, Action prepareGameMenu, Action<ProcessStartInfo> configureProcess,string diagnostics) {
             if (!Ready(root)) throw new IOException("Import your ISO before starting the game.");
             VerifyRuntime(root);
             VerifyImportedExecutable(root);
@@ -83,6 +99,7 @@ namespace CosmicRecompi {
                 if (setting == "resolution=4k") resolution = "4k";
                 if (setting == "frame_limit=30") frameLimit = "30";
                 if (setting == "frame_limit=60") frameLimit = "60";
+                if (setting == "frame_limit=unlimited") frameLimit = "unlimited";
             }
             // These are launcher-owned settings. User saves live in a different directory.
             string config = "resolution = \"" + resolution + "\"\nfullscreen = false\nmnk_mode = true\ninput_backend = \"sdl\"\ngpu_allow_invalid_fetch_constants = true\nlog_level = \"info\"\nlog_file = \"" + log.Replace("\"", "\\\"") + "\"\n";
@@ -107,12 +124,26 @@ namespace CosmicRecompi {
             start.EnvironmentVariables["BEN10_INTEL_STENCIL"] = "true";
             foreach (string flag in new string[] { "RTV_INITIAL_DEPTH_ZERO", "RTV_UNSIGNED_TEXTURES", "RTV_ZERO_LOD", "REUSE_UPLOADS", "DIRECT_RESOLVE", "ESTIMATE_DRAW_EXTENT", "IDLE_NOTIFICATION_PACING" })
                 start.EnvironmentVariables["BEN10_" + flag] = "1";
-            if (!uncapped) start.EnvironmentVariables["BEN10_FRAME_PACING_HZ"] = frameLimit;
+            if (!uncapped && frameLimit != "unlimited") start.EnvironmentVariables["BEN10_FRAME_PACING_HZ"] = frameLimit;
             string temp = Path.Combine(folder, "temp"); Directory.CreateDirectory(temp);
             start.EnvironmentVariables["TEMP"] = temp; start.EnvironmentVariables["TMP"] = temp;
             if (configureProcess != null) configureProcess(start);
+            start.RedirectStandardOutput=true;start.RedirectStandardError=true;
+            string output=Path.Combine(folder,"logs","startup-output.log");
+            File.WriteAllText(output,DateTime.UtcNow.ToString("o")+" Launching game. Resolution="+resolution+"; frame limit="+frameLimit+Environment.NewLine);
+            File.AppendAllText(diagnostics,DateTime.UtcNow.ToString("o")+" Process.Start: "+start.FileName+"; early output: "+output+Environment.NewLine);
             Process process = Process.Start(start);
-            process.Exited += delegate { runLock.Dispose(); };
+            object logLock=new object();
+            DataReceivedEventHandler capture=delegate(object sender,DataReceivedEventArgs args) {
+                if(args.Data==null)return;
+                lock(logLock) {try {File.AppendAllText(output,args.Data+Environment.NewLine);}catch {}}
+            };
+            process.OutputDataReceived+=capture;process.ErrorDataReceived+=capture;
+            process.BeginOutputReadLine();process.BeginErrorReadLine();
+            process.Exited += delegate {
+                try {lock(logLock)File.AppendAllText(diagnostics,DateTime.UtcNow.ToString("o")+" Game exit code: 0x"+process.ExitCode.ToString("X8")+Environment.NewLine);}catch {}
+                runLock.Dispose();
+            };
             process.EnableRaisingEvents = true;
             return process;
             } catch { runLock.Dispose(); throw; }

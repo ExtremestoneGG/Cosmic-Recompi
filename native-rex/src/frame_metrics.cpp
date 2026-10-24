@@ -11,6 +11,12 @@ size_t next=0,count=0;
 using Clock=std::chrono::steady_clock;
 Clock::time_point previous{};
 }
+extern "C" void Ben10FilterGameInput(uint32_t status,uint32_t guest_state,uint8_t* base) {
+  // X_INPUT_STATE: packet[4], buttons[2], LT[1], RT[1]. Keep the SDK's
+  // raw controller state intact: the page selector must still see RT edges.
+  if(status==0 && guest_state && ben10_pc_menu::all_aliens_enabled &&
+     base[guest_state+6]>30)base[guest_state+7]=0;
+}
 extern "C" void Ben10FrameSubmitted() {
   ben10_pc_menu::OnFrame();
   ben10_pacing_probe::pacer.Wait();

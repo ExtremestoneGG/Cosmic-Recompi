@@ -4,6 +4,7 @@
 #include <cstddef>
 // Counts the original game's VdSwap calls without altering its PPC state.
 extern "C" void Ben10FrameSubmitted();
+extern "C" void Ben10FilterGameInput(uint32_t status,uint32_t guest_state,uint8_t* base);
 uint64_t Ben10SubmittedFrames();
 struct Ben10FrameStats {
   std::array<float,240> frame_times_ms{};

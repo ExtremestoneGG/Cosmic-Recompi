@@ -18,6 +18,8 @@
 #include "replay_input.h"
 #include "performance_overlay.h"
 #include "pc_menu_bridge.h"
+#include "game_fault_probe.h"
+#include "diagnostic_paths.h"
 #include <rex/input/input_system.h>
 #include <rex/system/achievement_manager.h>
 
@@ -59,7 +61,7 @@ class Ben10App : public rex::ReXApp {
       paths.update_data_root.clear();
       return;
     }
-    const std::filesystem::path root=LR"(D:\Ben 10 recomp)";
+    const auto root=std::filesystem::current_path();
     paths.game_data_root=root/"originals";
     paths.user_data_root=root/(std::getenv("BEN10_REPLAY_INPUT_PATH")?"data/rex-benchmark-user":"data/rex-user");
     paths.cache_root=root/(std::getenv("BEN10_FORMATS_CACHE")?
@@ -275,6 +277,7 @@ class Ben10App : public rex::ReXApp {
   }
 
   void OnPostSetup() override {
+    ben10_fault_probe::Install();
     for(uint32_t address : {0x8210BB88u,0x8229A9F8u,0x8229AA20u,0x8229AA48u,
                             0x8229AA60u,0x8229AA78u,0x8229AA90u,0x8229AAA8u}) {
       if(!runtime()->function_dispatcher()->GetFunction(address))
@@ -303,12 +306,8 @@ class Ben10App : public rex::ReXApp {
     if(ben10_pc_menu::enabled()) {
       ben10_pc_menu::runtime=runtime();
       ben10_pc_menu::window=window();
-      ben10_pc_video::closed_event=CreateEventW(nullptr,TRUE,FALSE,nullptr);
-      if(!ben10_pc_video::closed_event)throw std::runtime_error("Video menu synchronization unavailable");
       auto* input=static_cast<rex::input::InputSystem*>(runtime()->input_system());
-      pc_video_menu_=std::make_unique<ben10_pc_video::Dialog>(imgui_drawer(),input,user_data_root(),pc_video_font_);
       input->SetActiveCallback([this] {
-        if(ben10_pc_video::CapturesGameInput())return ben10_pc_video::polling_ui;
         return !imgui_drawer()->GetIO().WantCaptureMouse;
       });
     }
@@ -367,7 +366,7 @@ class Ben10App : public rex::ReXApp {
               if (backend && (std::string_view(backend)=="vulkan" || std::string_view(backend)=="d3d12")) {
                 const char* flag=std::string_view(backend)=="vulkan"?
                     "vulkan_submit_on_primary_buffer_end":"d3d12_submit_on_primary_buffer_end";
-                std::ifstream command("D:/Ben 10 recomp/data/benchmark-gpu-command.txt");
+                std::ifstream command(Ben10DiagnosticDirectory()/"benchmark-gpu-command.txt");
                 std::string id;int enabled=-1;
                 if (command>>id>>enabled && id!=tuning_command && (enabled==0 || enabled==1)) {
                   const char* value=enabled?"true":"false";
@@ -381,14 +380,15 @@ class Ben10App : public rex::ReXApp {
             const auto now=std::chrono::steady_clock::now();
             const uint64_t frames=Ben10SubmittedFrames();
             const double elapsed=std::chrono::duration<double>(now-previous_time).count();
-            std::ofstream metrics("D:/Ben 10 recomp/data/analysis/rex-frame-metrics.tmp");
+            const auto metrics_tmp=Ben10DiagnosticDirectory()/"rex-frame-metrics.tmp";
+            const auto metrics_final=Ben10DiagnosticDirectory()/"rex-frame-metrics.json";
+            std::ofstream metrics(metrics_tmp);
             metrics << "{\"submitted_frames\":" << frames << ",\"elapsed_us\":"
                     << std::chrono::duration_cast<std::chrono::microseconds>(now-start_time).count()
                     << ",\"fps\":" << (frames-previous_frames)/elapsed
                     << ",\"interval_seconds\":" << elapsed << ",\"source\":\"VdSwap submissions per second; not monitor presents\"}";
             metrics.close();
-            MoveFileExW(L"D:/Ben 10 recomp/data/analysis/rex-frame-metrics.tmp",
-                        L"D:/Ben 10 recomp/data/analysis/rex-frame-metrics.json",MOVEFILE_REPLACE_EXISTING);
+            MoveFileExW(metrics_tmp.c_str(),metrics_final.c_str(),MOVEFILE_REPLACE_EXISTING);
             previous_frames=frames;previous_time=now;
           }
           // GPU readbacks are for explicit visual tests, never ordinary play.
@@ -404,11 +404,11 @@ class Ben10App : public rex::ReXApp {
           if (!graphics || !graphics->presenter()) continue;
           rex::ui::RawImage image;
           bool captured=graphics->presenter()->CaptureGuestOutput(image);
-          std::ofstream status("D:/Ben 10 recomp/data/analysis/rex-output.json");
+          std::ofstream status(Ben10DiagnosticDirectory()/"rex-output.json");
           status << "{\"captured\":" << (captured?"true":"false")
                  << ",\"width\":" << image.width << ",\"height\":" << image.height << "}";
           if (!captured || !image.width || !image.height) continue;
-          std::ofstream output("D:/Ben 10 recomp/data/analysis/rex-output.ppm",std::ios::binary);
+          std::ofstream output(Ben10DiagnosticDirectory()/"rex-output.ppm",std::ios::binary);
           output << "P6\n" << image.width << ' ' << image.height << "\n255\n";
           for (uint32_t y=0;y<image.height;++y)
             for (uint32_t x=0;x<image.width;++x)

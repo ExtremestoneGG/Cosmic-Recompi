@@ -1,40 +1,26 @@
 [English](#english) | [Português (Brasil)](#portugues)
 
 <a id="english"></a>
+# v0.3.0-test.1 — launcher, original game menus and Rath exclusion
 
-# v0.2.1-test.1 — gameplay callback fix and failure diagnostics
+This is an experimental public test requested with Rath disabled. It does not contain a fix for his transformation resource crash. Rath is removed from the All Aliens roster and guarded in all four original transformation input paths, including profiles that already selected him. His menu unlock is kept OFF. Other ordinary forms remain experimental, with pages of 4 + 4 + 2 for a normal four-form preset.
 
-The missing `0x8210BB88` callback is restored from the user's original executable and registered by static code generation. It passed 8,192 instruction-oracle cases, actual native dispatch/callee execution on an isolated guest allocation and a 180-second game smoke test. Prior callback fixes remain checked at startup.
+The standalone launcher uses its own OpenGL-enabled SDL build, exits before gameplay, always requires Play and has corrected menu spacing/highlights. ISO acceptance and preparation are separate steps. The portable EXE extracts only host binaries and notices beside itself; user assets and saves use the shared game-data directory. A desktop shortcut is created after import. Startup failures are logged before the game runs.
 
-A **separate first-boss death crash at target zero remains under investigation**. Failure-only register and stack diagnostics are included for its next reproduction; this release does not claim that crash is fixed. See HOTFIX.md. Saves, graphics DLL and accumulated graphics optimizations are preserved. No new FPS gain is claimed.
+Video settings use the original Ben 10 menus, with resolution presets and 30/60/Unlimited limits; the launcher edits the same settings. Native 720p remains the minimum. Resolution changes still require restart. Experimental live-resolution/fullscreen work is not included. Quit to launcher and user-supplied translation tables are included; no translation or background video is bundled.
 
-## Features retained from v0.2.0-test.1
+All Aliens reserves RT for paging while LT is held, restores the original preset when LT is released, and uses the original HUD and selection-sound call. Audible sound, all transformations, mission transitions, death/reload and full-campaign compatibility are not established by the policy/unit tests. An automated extra-form selection also reproduced a missing animation resource associated with Armodrillo; the user reported other forms working. This remains an open issue, not a blanket validation of the roster. Keep All Aliens OFF for the baseline path. No new FPS gain or stable 60 FPS claim is made. The earlier first-boss death failure remains unverified.
 
-- Standalone Full Emerald-style Dear ImGui/SDL/OpenGL launcher: Play, Settings, Quit and Start directly in game. The frontend exits before gameplay; the game still uses ReXGlue Direct3D 12.
-- Choose an installation folder, import your supported ISO and find the actual save folder. Existing saves are preserved.
-- VIDEO in the original OPTIONS menu: 720p/1080p/1440p/4K startup presets and internal 30/60 FPS caps. Default 30; 60 is experimental; uncapped disabled.
-- Separate QUIT TO LAUNCHER near original QUIT, with confirmation and return even when direct-start is enabled.
-- Optional GIF background support; the final recording is not included. No Mods, Players or extra achievements menu.
-- English interface, English-first documentation with Portuguese sections, dependency origins, licenses, build instructions and explicit test limitations.
-
-Validated with automated menu/controller and process-lifecycle tests, including spaces and accented folder names. Save/Continue was previously manually confirmed. The complete campaign and stable 60 FPS are not validated. SDK/GPU DLLs and retained graphics optimizations are unchanged; this is not a new FPS-gain claim.
-
-Bring your own supported copy. The package contains no ISO, XEX, original game assets, generated game source or personal saves. Extract the whole ZIP, select your existing installation or import your ISO, and preserve `user` during updates. Do not mix runtime files between releases.
+Verification records distinguish automated exclusion/installer checks, limited native-game probes and earlier user-confirmed Save/Continue. SDK/GPU binaries retain the v0.2.1 accepted hashes. The consumer adds the native input filter and a 64 MiB DB File Heap budget; corresponding authored integration and SDK sources are supplied. No generated game source, game assets or personal information is shipped.
 
 ---
-
 <a id="portugues"></a>
+# v0.3.0-test.1 — launcher, menus do jogo e Rath desativado
 
-# v0.2.1-test.1 — correção de callback e diagnóstico de falha
+Versão pública experimental solicitada com o Rath desativado. O crash da transformação dele não está corrigido: ele foi retirado do All Aliens e bloqueado nos quatro caminhos de seleção, inclusive para saves antigos. As páginas ficam em 4 + 4 + 2 para o grupo inicial normal.
 
-O callback ausente `0x8210BB88` foi restaurado e registrado. Passou em 8.192 casos de comparação com as instruções originais, execução nativa real sobre memória isolada e teste de jogo de 180 segundos. As correções anteriores continuam verificadas na inicialização.
+Inclui ajustes do launcher, Play obrigatório, seleção/validação da ISO separada da preparação, pacote em um executável, atalho após importação, logs iniciais, menus Video do próprio Ben 10, Quit to launcher e importação de tabela de tradução fornecida pelo usuário. O launcher fecha antes do jogo. Nenhum patch ou vídeo de fundo está incluído.
 
-O **crash separado ao morrer no primeiro chefe, com alvo zero, continua em investigação**. Esta versão registra contexto/pilhas somente quando a falha ocorre para permitir sua reprodução e correção; não declara essa falha resolvida. Consulte HOTFIX.md. Saves, DLL da GPU e otimizações acumuladas foram preservados. Não há promessa de ganho novo de FPS.
+LT + RT troca páginas sem acionar as habilidades por RT enquanto LT estiver segurado. Um teste automático também reproduziu recurso ausente ao selecionar Armodrillo; o usuário relatou os outros funcionando. Essa divergência continua em investigação. All Aliens começa desligado e continua experimental; todas as transformações, mortes e mudanças de fase ainda precisam de testes. Resolução ainda exige reinício; os limites 60/Unlimited não comprovam 60 FPS estáveis. O crash anterior ao morrer no primeiro chefe permanece sem confirmação de correção. Save/Continue já foi confirmado manualmente em teste anterior.
 
-## Recursos mantidos da v0.2.0-test.1
-
-Launcher separado no estilo Full Emerald, com Play, Settings, Quit e início direto; ele encerra antes do jogo. A instalação pode ficar na pasta escolhida, e Settings mostra o local dos saves. VIDEO fica em OPTIONS, com presets de 720p a 4K e limites internos de 30/60 FPS. O padrão é 30; 60 é experimental e ilimitado está desativado. QUIT TO LAUNCHER fica separado de QUIT e usa confirmação.
-
-O fundo GIF opcional está preparado; a gravação final não acompanha o pacote. A interface está em inglês e a documentação tem seções em português. Testes automáticos cobriram menus, controle e ciclo de processos em pastas com espaços/acentos. Save/Continuar já foi confirmado manualmente. Campanha completa e 60 FPS estáveis continuam sem validação. Não houve alteração dos DLLs do SDK/GPU nem promessa de ganho novo de FPS.
-
-Forneça sua própria cópia suportada. Extraia o ZIP inteiro, selecione a instalação existente ou importe a ISO e preserve `user`. Não misture arquivos de runtime entre versões. Nenhum recurso original ou save pessoal é distribuído.
+Os binários do SDK/GPU mantêm os hashes aceitos da versão anterior. O executável do jogo recebe o filtro de entrada e orçamento de 64 MiB para DB File Heap. As origens, alterações próprias, testes e limitações estão documentados. Não há dados do jogo, código gerado do jogo nem saves pessoais no download.

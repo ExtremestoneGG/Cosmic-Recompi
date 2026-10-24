@@ -19,8 +19,8 @@ class Ben10ReplayInput final : public InputDriver {
       for (char& c:line) if (c==',') c=' ';
       std::istringstream row(line);Step step{};
       if (row>>step.begin>>step.end>>step.buttons>>step.ly) {
-        row>>step.rx>>step.ry>>step.lx;
-        if (step.ly>=-32768 && step.ly<=32767 && step.rx>=-32768 && step.rx<=32767 && step.ry>=-32768 && step.ry<=32767 && step.lx>=-32768 && step.lx<=32767)
+        row>>step.rx>>step.ry>>step.lx>>step.lt>>step.rt;
+        if (step.ly>=-32768 && step.ly<=32767 && step.rx>=-32768 && step.rx<=32767 && step.ry>=-32768 && step.ry<=32767 && step.lx>=-32768 && step.lx<=32767 && step.lt>=0 && step.lt<=255 && step.rt>=0 && step.rt<=255)
           steps_.push_back(step);
       }
     }
@@ -37,27 +37,31 @@ class Ben10ReplayInput final : public InputDriver {
     std::memset(state,0,sizeof(*state));
     if(!is_active())return X_ERROR_SUCCESS;
     const auto elapsed=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start_).count();
-    uint16_t buttons=0;int16_t ly=0,rx=0,ry=0,lx=0;
+    uint16_t buttons=0;int16_t ly=0,rx=0,ry=0,lx=0;uint8_t lt=0,rt=0;
     for (const auto& step:steps_) if (elapsed>=step.begin && elapsed<step.end) {
       buttons|=step.buttons;ly=static_cast<int16_t>(step.ly);rx=static_cast<int16_t>(step.rx);ry=static_cast<int16_t>(step.ry);lx=static_cast<int16_t>(step.lx);
+      lt=static_cast<uint8_t>(step.lt);rt=static_cast<uint8_t>(step.rt);
     }
     const auto now=std::chrono::steady_clock::now();
     const int64_t wall_ms=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     if (!command_file_.empty() && now>=next_command_read_) {
       next_command_read_=now+std::chrono::milliseconds(50);
-      std::ifstream command(command_file_);unsigned bits=0;int value=0,rx_value=0,ry_value=0,lx_value=0;int64_t expiry=0;
+      std::ifstream command(command_file_);unsigned bits=0;int value=0,rx_value=0,ry_value=0,lx_value=0,lt_value=0,rt_value=0;int64_t expiry=0;
       if (command>>expiry>>bits>>value && bits<=0xffff && value>=-32768 && value<=32767) {
-        command>>rx_value>>ry_value>>lx_value;
-        if (rx_value>=-32768 && rx_value<=32767 && ry_value>=-32768 && ry_value<=32767 && lx_value>=-32768 && lx_value<=32767) {
+        command>>rx_value>>ry_value>>lx_value>>lt_value>>rt_value;
+        if (rx_value>=-32768 && rx_value<=32767 && ry_value>=-32768 && ry_value<=32767 && lx_value>=-32768 && lx_value<=32767 && lt_value>=0 && lt_value<=255 && rt_value>=0 && rt_value<=255) {
           command_expires_=expiry;command_buttons_=static_cast<uint16_t>(bits);command_ly_=static_cast<int16_t>(value);
           command_rx_=static_cast<int16_t>(rx_value);command_ry_=static_cast<int16_t>(ry_value);command_lx_=static_cast<int16_t>(lx_value);
+          command_lt_=static_cast<uint8_t>(lt_value);command_rt_=static_cast<uint8_t>(rt_value);
         }
       }
     }
-    if (wall_ms<command_expires_) { buttons|=command_buttons_;ly=command_ly_;rx=command_rx_;ry=command_ry_;lx=command_lx_; }
+    if (wall_ms<command_expires_) { buttons|=command_buttons_;ly=command_ly_;rx=command_rx_;ry=command_ry_;lx=command_lx_;lt=command_lt_;rt=command_rt_; }
     const uint64_t packet=(uint64_t(buttons)<<48)|(uint64_t(uint16_t(ly))<<32)|(uint64_t(uint16_t(rx))<<16)|uint16_t(ry);
-    if (packet!=previous_state_ || lx!=previous_lx_) { ++packet_number_;previous_state_=packet;previous_lx_=lx; }
+    const uint16_t triggers=(uint16_t(lt)<<8)|rt;
+    if (packet!=previous_state_ || lx!=previous_lx_ || triggers!=previous_triggers_) { ++packet_number_;previous_state_=packet;previous_lx_=lx;previous_triggers_=triggers; }
     state->packet_number=packet_number_;state->gamepad.buttons=buttons;state->gamepad.thumb_ly=ly;state->gamepad.thumb_rx=rx;state->gamepad.thumb_ry=ry;state->gamepad.thumb_lx=lx;
+    state->gamepad.left_trigger=lt;state->gamepad.right_trigger=rt;
     return X_ERROR_SUCCESS;
   }
   X_RESULT GetDeviceCapabilities(rex::input::DeviceId id,uint32_t,rex::input::X_INPUT_CAPABILITIES* caps) override {
@@ -72,7 +76,9 @@ class Ben10ReplayInput final : public InputDriver {
     return id==id_?X_ERROR_EMPTY:X_ERROR_DEVICE_NOT_CONNECTED;
   }
  private:
-  struct Step { int64_t begin,end;uint16_t buttons;int ly,rx,ry,lx; };
+  // Optional final columns LT and RT are unsigned trigger pressure, 0..255.
+  // Existing four/seven-column recordings keep both triggers released.
+  struct Step { int64_t begin,end;uint16_t buttons;int ly,rx,ry,lx,lt,rt; };
   std::vector<Step> steps_;
   std::chrono::steady_clock::time_point start_;
   std::chrono::steady_clock::time_point next_command_read_;
@@ -83,6 +89,8 @@ class Ben10ReplayInput final : public InputDriver {
   int16_t command_ly_=0;
   int16_t command_rx_=0,command_ry_=0;
   int16_t command_lx_=0,previous_lx_=0;
+  uint8_t command_lt_=0,command_rt_=0;
+  uint16_t previous_triggers_=0;
   uint64_t previous_state_=0;
   uint32_t packet_number_=0x40000000;
   static constexpr auto id_=static_cast<rex::input::DeviceId>(0x42454e313052504c);

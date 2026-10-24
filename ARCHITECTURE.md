@@ -14,7 +14,7 @@ The package includes an already compiled Windows executable. Installation import
 
 The native frontend uses Dear ImGui, SDL3 and OpenGL. Its menu layout follows Full Emerald; only the reusable UI code and GIF loader are dependencies, not its game assets. An optional background GIF is decoded once and updated using one texture.
 
-Play starts an independent C# bridge and destroys the frontend. The bridge waits for the frontend process to exit before starting the game. Therefore its window, graphics context and animation do not run during gameplay. Start directly in game bypasses SDL initialization entirely. Returning uses a per-launch named event; the bridge reopens the frontend with an explicit override of direct boot.
+Play starts an independent C# bridge and destroys the frontend. The bridge waits for the frontend process to exit before starting the game. Therefore its window, graphics context and animation do not run during gameplay. The launcher always requires Play. Returning uses a per-launch named event; the bridge reopens the frontend.
 
 The importer derives two menu files from the user's supported copy, keeping validated originals as backups. Original pause-menu QUIT is preserved; QUIT TO LAUNCHER has its own confirmation. VIDEO is added to original OPTIONS. SDK-dispatched callbacks open a native SDK-rendered video panel; a deferred guest callback restores the original Options menu afterward. No original bytecode is shipped.
 

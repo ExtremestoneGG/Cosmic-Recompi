@@ -14,7 +14,7 @@ def relocate(sdk: Path, consumer: Path) -> int:
         raise ValueError('Expected consumer/native-rex/src')
     # Match the old absolute project prefix without depending on a drive or
     # user name. Only named headers present in the consumer may be relocated.
-    pattern = re.compile(r'(#include\s+")[A-Za-z]:/[^"\r\n]*/native-rex/src/([^"\r\n]+)(")')
+    pattern = re.compile(r'(#include\s+")(?:@COSMIC_CONSUMER@/|[A-Za-z]:/[^"\r\n]*/native-rex/src/)([^"\r\n]+)(")')
     pending = []
     for base in (sdk/'src', sdk/'include'):
         for path in base.rglob('*'):

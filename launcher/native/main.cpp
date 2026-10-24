@@ -12,6 +12,7 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include <charconv>
 
 namespace fs = std::filesystem;
 static fs::path root;
@@ -43,18 +44,23 @@ static bool spawn(const wchar_t* action) {
 }
 static bool nav(const char* text, float width, bool selected = false) {
     const ImVec2 pos = ImGui::GetCursorScreenPos();
-    bool clicked = ImGui::Selectable(text, selected, ImGuiSelectableFlags_None, ImVec2(width, 48));
+    ImGui::PushID(text);
+    bool clicked = ImGui::InvisibleButton("##navigation", ImVec2(width, 48), ImGuiButtonFlags_EnableNav);
     if (ImGui::IsItemHovered() || ImGui::IsItemFocused() || selected) {
         auto* draw = ImGui::GetWindowDrawList();
-        draw->AddRect(pos, ImVec2(pos.x + width, pos.y + 48), IM_COL32(87, 241, 179, 255), 6, 0, 1.5f);
+        draw->AddRectFilledMultiColor(pos, ImVec2(pos.x + width, pos.y + 48),
+            IM_COL32(52,190,133,175),IM_COL32(52,190,133,0),
+            IM_COL32(52,190,133,0),IM_COL32(52,190,133,175));
     }
+    ImGui::GetWindowDrawList()->AddText(ImVec2(pos.x+16,pos.y+(48-ImGui::GetTextLineHeight())*.5f),
+        ImGui::GetColorU32(ImGuiCol_Text),text);
+    ImGui::PopID();
     return clicked;
 }
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
     wchar_t module[32768]; GetModuleFileNameW(nullptr, module, 32768);
     root = fs::path(module).parent_path();
     bool smoke = std::wstring(args).find(L"--smoke-test") != std::wstring::npos;
-    bool forceLauncher = std::wstring(args).find(L"--launcher") != std::wstring::npos;
     // A process-scoped mutex protects preferences and import status from races.
     std::wstring mutexName = L"Local\\CosmicRecompNative-" + std::to_wstring(std::hash<std::wstring>{}(root.wstring()));
     HANDLE instance = CreateMutexW(nullptr, TRUE, mutexName.c_str());
@@ -63,15 +69,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
     fs::create_directories(root/"temp");
     SetEnvironmentVariableW(L"TEMP",(root/"temp").c_str());
     SetEnvironmentVariableW(L"TMP",(root/"temp").c_str());
-    std::string preference = read(root / "launcher-preferences.ini");
-    while (!preference.empty() && (preference.back() == '\r' || preference.back() == '\n')) preference.pop_back();
-    bool direct = preference == "start_directly=1";
-    // Direct boot does not create a window, graphics context or decode artwork.
-    if (direct && ready() && !forceLauncher && !smoke) {
-        bool started = spawn(L"play");
-        if (started) CloseHandle(worker.hProcess);
-        ReleaseMutex(instance); CloseHandle(instance); return started ? 0 : 1;
-    }
+    // Always show the launcher. Legacy direct-start preferences are ignored.
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) { MessageBoxA(nullptr, SDL_GetError(), "Cosmic Recomp", MB_ICONERROR); CloseHandle(instance); return 1; }
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3); SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_Window* window = SDL_CreateWindow("Cosmic Recomp", 1100, 840, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | (smoke ? SDL_WINDOW_HIDDEN : 0));
@@ -99,7 +97,19 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
     style.Colors[ImGuiCol_CheckMark] = ImVec4(.27f,.95f,.67f,1);
     ImGui_ImplSDL3_InitForOpenGL(window, context); ImGui_ImplOpenGL3_Init("#version 130");
     auto background = launcher_animation_load_gif("assets/launcher/background.gif");
-    bool quit = false, settings = false; int frames = 0;
+    bool quit = false, settings = std::wstring(args).find(L"--settings") != std::wstring::npos; int frames = 0;
+    int resolution = 0, rate = 0;
+    {
+        std::ifstream file(installation()/"user/pc-video.ini"); std::string line;
+        while(std::getline(file,line)) {
+            if(!line.empty() && line.back()=='\r')line.pop_back();
+            if(line=="resolution=1080p")resolution=1;
+            if(line=="resolution=1440p")resolution=2;
+            if(line=="resolution=4k")resolution=3;
+            if(line=="frame_limit=60")rate=1;
+            if(line=="frame_limit=unlimited")rate=2;
+        }
+    }
     Uint64 nextStatusRead=0;
     if(ready())status="Ready to play.";
     while (!quit) {
@@ -140,14 +150,14 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
         ImGui::SetCursorPos(ImVec2(left, 50)); ImGui::PushFont(heading);
         ImGui::TextColored(ImVec4(.52f,1,.69f,1), "COSMIC"); ImGui::PopFont();
         ImGui::PushFont(subtitle); ImGui::SetCursorPosX(left); ImGui::TextUnformatted("RECOMP"); ImGui::PopFont();
-        const float menuWidth=settings?std::min(320.f,size.x*.42f):std::min(380.f,size.x-left*2);
+        const float menuWidth=std::min(380.f,size.x-left*2);
         const float menuTop=settings?std::max(185.f,size.y*.26f):std::max(210.f,size.y*.39f);
         ImGui::SetCursorPos(ImVec2(left,menuTop));
-        ImGui::BeginChild("menu", ImVec2(menuWidth, size.y*.43f), ImGuiChildFlags_None);
+        ImGui::BeginChild("menu", ImVec2(settings?size.x-left*2:menuWidth, std::max(80.f,size.y-menuTop-148)), ImGuiChildFlags_None);
         if (!settings) {
             ImGui::BeginDisabled(worker.hProcess != nullptr);
-            if (nav("Play", ImGui::GetContentRegionAvail().x, !io.NavActive)) {
-                if (!ready()) { settings = true; status = "Select your ISO and installation folder."; }
+            if (nav("Play", ImGui::GetContentRegionAvail().x)) {
+                if (!ready()) { settings = true; status = "Select and validate your own ISO to get started."; }
                 else if (spawn(L"play")) {
                     // The independent bridge owns the game's lifetime and lock.
                     // Destroy this frontend completely rather than keeping a hidden renderer.
@@ -160,30 +170,56 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
             ImGui::EndDisabled();
         } else {
             ImGui::BeginDisabled(worker.hProcess != nullptr);
-            if (nav("Select ISO", ImGui::GetContentRegionAvail().x)) spawn(L"import");
-            if (nav("Installation folder", ImGui::GetContentRegionAvail().x)) spawn(L"folder");
-            if (nav("Open saves", ImGui::GetContentRegionAvail().x)) spawn(L"saves");
-            if (nav("Back", ImGui::GetContentRegionAvail().x)) settings = false;
+            ImGui::TextUnformatted("GAME SETUP");
+            if (ImGui::Button("Select ISO")) spawn(L"select-iso");
+            ImGui::BeginDisabled(ready() || !fs::exists(root/"selected-iso.txt"));
+            ImGui::SameLine(); if(ImGui::Button("Prepare game"))spawn(L"import");
+            ImGui::EndDisabled();
+            ImGui::TextWrapped("Select ISO, wait for validation, then prepare your game. Original game files stay on this computer.");
+            ImGui::Separator(); ImGui::TextUnformatted("VIDEO");
+            ImGui::SetNextItemWidth(-1);
+            ImGui::Combo("##resolution",&resolution,"1280 x 720 (native)\0" "1920 x 1080\0" "2560 x 1440\0" "3840 x 2160\0");
+            ImGui::SetNextItemWidth(-1);
+            ImGui::Combo("##frame-limit",&rate,"30 FPS\0" "60 FPS\0" "Unlimited\0");
+            ImGui::TextWrapped("Applies when the game starts. 60 FPS is a limit, not a performance guarantee.");
+            if(ImGui::Button("Save video settings")) {
+                const char* resolutions[]={"720p","1080p","1440p","4k"};
+                auto path=installation()/"user/pc-video.ini";
+                std::error_code error; fs::create_directories(path.parent_path(),error);
+                bool saved=false;
+                if(!error) {
+                    auto temporary=path;temporary+=L".launcher.tmp";
+                    {std::ofstream file(temporary,std::ios::binary|std::ios::trunc);
+                     file<<"resolution="<<resolutions[resolution]<<"\nframe_limit="<<(rate==2?"unlimited":rate==1?"60":"30")<<"\n";
+                     file.flush();saved=bool(file);}
+                    if(saved)saved=MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;
+                }
+                status=saved?"Video settings saved.":"Could not save video settings. Check folder permissions.";
+            }
+            ImGui::Separator();
+            ImGui::TextUnformatted("PATCHES");
+            ImGui::BeginDisabled(!ready());
+            if(ImGui::Button("Add translation patch"))spawn(L"patch");
+            ImGui::EndDisabled();
+            ImGui::TextWrapped("Select the patch's global/scripts/xbx_us.txt file. Patches are supplied separately by their authors.");
+            ImGui::Separator();
+            ImGui::TextWrapped("Save folder: %s",(installation()/"user").u8string().c_str());
+            ImGui::TextWrapped("Keep this folder when updating. To reset saves, close the game and rename user to user-backup.");
+            if(ImGui::Button("Open saves"))spawn(L"saves");
+            ImGui::SameLine(); if(ImGui::Button("Back")) settings=false;
             ImGui::EndDisabled();
         }
         ImGui::EndChild();
-        if(settings) {
-            ImGui::SetCursorPos(ImVec2(left+menuWidth+24,menuTop));
-            ImGui::PushTextWrapPos(size.x-30);
-            const std::string saves=(installation()/"user").u8string();
-            ImGui::TextWrapped("Save folder: %s",saves.c_str());
-            ImGui::TextDisabled("Keep this folder when updating.");
-            ImGui::TextWrapped("To reset: close the game, then rename user to user-backup.");
-            ImGui::PopTextWrapPos();
+        ImGui::SetCursorPos(ImVec2(30, size.y-132));
+        if(status.rfind("Preparing: ",0)==0) {
+            int percent=0;std::from_chars(status.data()+11,status.data()+status.size(),percent);
+            ImGui::ProgressBar(std::clamp(percent,0,100)/100.f,ImVec2(size.x-60,16));
         }
-        ImGui::SetCursorPos(ImVec2(30, size.y-110)); ImGui::PushTextWrapPos(size.x-30);
+        ImGui::SetCursorPos(ImVec2(30,size.y-110));
+        ImGui::BeginChild("status",ImVec2(size.x-60,48),ImGuiChildFlags_None);
+        ImGui::PushTextWrapPos(0);
         ImGui::TextColored(ImVec4(.72f,.82f,.77f,1), "%s", status.c_str()); ImGui::PopTextWrapPos();
-        ImGui::SetCursorPos(ImVec2(30,size.y-54));
-        if (ImGui::Checkbox("Start directly in game", &direct)) {
-            std::ofstream preference(root / "launcher-preferences.ini", std::ios::binary | std::ios::trunc);
-            preference << (direct ? "start_directly=1\n" : "start_directly=0\n");
-            if (!preference) { direct = false; status = "Could not save the preference. Check folder permissions."; }
-        }
+        ImGui::EndChild();
         ImGui::End(); ImGui::Render();
         int width, height; SDL_GetWindowSizeInPixels(window, &width, &height);
         glViewport(0,0,width,height); glClearColor(.02f,.05f,.04f,1); glClear(GL_COLOR_BUFFER_BIT);

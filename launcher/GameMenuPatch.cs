@@ -34,7 +34,7 @@ namespace CosmicRecompi {
             List<int> positions=new List<int>(); int cursor=0;
             while(cursor<code.Length) {
                 positions.Add(cursor); int kind=(int)(Read(code,cursor)&255),size=4;
-                if(kind==3 || kind==5 || kind==7 || kind==8 || kind==0x17 || kind==0x20) size=8;
+                if(kind==3 || kind==5 || kind==7 || kind==8 || kind==0x17 || kind==0x19 || kind==0x20) size=8;
                 else if(kind==4) {
                     int end=Array.IndexOf(code,(byte)0,cursor+4);
                     if(end<0) throw new InvalidDataException("Unterminated script string.");
@@ -75,7 +75,7 @@ namespace CosmicRecompi {
             if(native=="cosmic_video_options")foreach(uint word in new uint[] {0x00000507,Crc("overlay"),0x00000607,Crc("CosmicRestoreOptions"),0x00000207,Crc("overlay"),0x00000217,Crc("pushfunction"),0x02050020,1})Append(stream,word);
             Append(stream,0x21);
         }
-        public static byte[] Frontend(byte[] original) {
+        static byte[] LegacyFrontend(byte[] original) {
             if(Hash(original)!=FrontendHash)throw new InvalidDataException("Unsupported original frontend script.");
             if(Read(original,0)!=0x1badbabe || Read(original,4)!=103)throw new InvalidDataException("Unsupported frontend header.");
             using(MemoryStream output=new MemoryStream()) {
@@ -103,7 +103,121 @@ namespace CosmicRecompi {
                 return output.ToArray();
             }
         }
-        public static byte[] English(byte[] original) {
+        static readonly string[][] VideoChoices = {
+            new string[]{"cosmic_resolution_720", "1280 X 720 (NATIVE)", "cosmic_set_720"},
+            new string[]{"cosmic_resolution_1080", "1920 X 1080", "cosmic_set_1080"},
+            new string[]{"cosmic_resolution_1440", "2560 X 1440", "cosmic_set_1440"},
+            new string[]{"cosmic_resolution_4k", "3840 X 2160", "cosmic_set_4k"},
+            new string[]{"cosmic_fps_30", "30 FPS", "cosmic_set_30"},
+            new string[]{"cosmic_fps_60", "60 FPS", "cosmic_set_60"},
+            new string[]{"cosmic_fps_unlimited", "UNLIMITED", "cosmic_set_unlimited"}
+        };
+        static void Function(Stream output,string name,uint arguments,byte[] code) {
+            Append(output,Crc(name));Append(output,arguments);Append(output,(uint)(code.Length/4));output.Write(code,0,code.Length);
+        }
+        static byte[] NativeMenu(byte[] template,string menu,string title,string[][] rows) {
+            // Preserve the original Options menu's VM registers, repeat-input,
+            // intro animation and cancel callback. Only authored rows differ.
+            using(MemoryStream code=new MemoryStream()) {
+                byte[] header=new byte[37*4];Buffer.BlockCopy(template,0,header,0,header.Length);
+                Write(header,12*4,Crc(title));
+                foreach(int p in Tokens(header))if((Read(header,p)&255)==7 || (Read(header,p)&255)==8)
+                    if(Read(header,p+4)==0x8610f32e)Write(header,p+4,Crc(menu));
+                code.Write(header,0,header.Length);
+                foreach(string[] row in rows)foreach(uint word in new uint[]{
+                    0x00000607,Crc(menu),0x00000705,Crc(row[0]),0x00000801,
+                    0x00000907,Crc(row[2]),0x00000a01,0x00000307,Crc("Menu_AddOption"),0x05060320,1})Append(code,word);
+                foreach(uint word in new uint[]{0x00000607,Crc(menu),0x00000307,Crc("MenuStack_Push"),0x01060320,1,0x21})Append(code,word);
+                return code.ToArray();
+            }
+        }
+        static byte[] NativeMenuFrontend(byte[] original) {
+            byte[] legacy=LegacyFrontend(original),template=null;
+            int cursor=8;
+            for(int i=0;i<103;i++) {
+                int bytes=checked((int)Read(original,cursor+8)*4);
+                if(Read(original,cursor)==0xb4db5294){template=new byte[bytes];Buffer.BlockCopy(original,cursor+12,template,0,bytes);}
+                cursor+=12+bytes;
+            }
+            if(template==null)throw new InvalidDataException("Original Options menu missing.");
+            using(MemoryStream output=new MemoryStream()) {
+                Append(output,0x1badbabe);Append(output,Read(legacy,4)+9);cursor=8;
+                for(int i=0;i<Read(legacy,4);i++) {
+                    uint identity=Read(legacy,cursor);int bytes=checked((int)Read(legacy,cursor+8)*4);
+                    if(identity==Crc("CosmicVideoOptions"))Function(output,"CosmicVideoOptions",1,NativeMenu(template,"cosmic_video_menu","cosmic_video_label",new string[][] {
+                        new string[]{"cosmic_resolution_label","RESOLUTION (RESTART REQUIRED)","CosmicResolutionOptions"},
+                        new string[]{"cosmic_frame_limit_label","FRAME LIMIT","CosmicFrameOptions"}}));
+                    else output.Write(legacy,cursor,12+bytes);
+                    cursor+=12+bytes;
+                }
+                Function(output,"CosmicResolutionOptions",1,NativeMenu(template,"cosmic_resolution_menu","cosmic_resolution_label",new string[][] {VideoChoices[0],VideoChoices[1],VideoChoices[2],VideoChoices[3]}));
+                Function(output,"CosmicFrameOptions",1,NativeMenu(template,"cosmic_frame_menu","cosmic_frame_limit_label",new string[][] {VideoChoices[4],VideoChoices[5],VideoChoices[6]}));
+                foreach(string[] choice in VideoChoices) {
+                    using(MemoryStream callback=new MemoryStream()) {
+                        foreach(uint word in new uint[]{0x00000507,Crc("overlay"),0x00000207,Crc("overlay"),0x00000217,Crc(choice[2]),0x01050020,1,0x21})Append(callback,word);
+                        Function(output,choice[2]+"_row",1,callback.ToArray());
+                    }
+                }
+                // Menu callbacks point at script wrappers; the native names are
+                // invoked through the overlay's registered native methods.
+                byte[] result=output.ToArray();
+                cursor=8;
+                for(int i=0;i<Read(result,4);i++) {
+                    int bytes=checked((int)Read(result,cursor+8)*4);byte[] code=new byte[bytes];Buffer.BlockCopy(result,cursor+12,code,0,bytes);
+                    uint identity=Read(result,cursor);
+                    if(identity==Crc("CosmicResolutionOptions") || identity==Crc("CosmicFrameOptions"))
+                        foreach(int p in Tokens(code))if((Read(code,p)&255)==7)
+                            foreach(string[] choice in VideoChoices)if(Read(code,p+4)==Crc(choice[2]))Write(result,cursor+12+p+4,Crc(choice[2]+"_row"));
+                    cursor+=12+bytes;
+                }
+                return result;
+            }
+        }
+        public static byte[] Frontend(byte[] original) {
+            return AllAliensPatch.Frontend(RathFrontend(original));
+        }
+        static byte[] RathFrontend(byte[] original) {
+            byte[] menus=NativeMenuFrontend(original);
+            using(MemoryStream output=new MemoryStream()) {
+                Append(output,Read(menus,0));Append(output,Read(menus,4));int cursor=8,patched=0;
+                for(int i=0;i<Read(menus,4);i++) {
+                    uint identity=Read(menus,cursor),arguments=Read(menus,cursor+4);
+                    int bytes=checked((int)Read(menus,cursor+8)*4);
+                    byte[] code=new byte[bytes];Buffer.BlockCopy(menus,cursor+12,code,0,bytes);
+                    if(identity==Crc("MainMenuText_Enter")) {
+                        // The original Xbox "primus" branch sets
+                        // postMission.unlocked[9] = true. Apply just that flag
+                        // after loading a profile, before roster selection.
+                        // Nil guards retain the original flow on invalid data.
+                        uint[] prefix={0x00000107,Crc("postMission"),0x000a011f,
+                            0x00020117,Crc("unlocked"),0x000a021f,
+                            0x00000303,0x41100000,0x00010402,0x0403021a};
+#if COSMIC_DISABLE_RATH
+                        // Public test policy: keep Rath locked while his
+                        // transformation resource failure is investigated.
+                        prefix[8]=0x00000402;
+#endif
+                        var decoded=Tokens(code);var boundaries=new HashSet<int>(decoded);boundaries.Add(code.Length);
+                        foreach(int p in decoded) {
+                            uint word=Read(code,p);
+                            if((word&255)==0x1f) {
+                                if(!boundaries.Contains(checked((int)(word>>16)*4)))throw new InvalidDataException("Invalid main-menu branch.");
+                                Write(code,p,word+((uint)prefix.Length<<16));
+                            }
+                        }
+                        using(MemoryStream extended=new MemoryStream()) {
+                            foreach(uint word in prefix)Append(extended,word);
+                            extended.Write(code,0,code.Length);code=extended.ToArray();
+                        }
+                        patched++;
+                    }
+                    Append(output,identity);Append(output,arguments);Append(output,(uint)(code.Length/4));output.Write(code,0,code.Length);cursor+=12+bytes;
+                }
+                if(patched!=1 || cursor!=menus.Length)throw new InvalidDataException("Expected main-menu unlock point missing.");
+                return output.ToArray();
+            }
+        }
+        static byte[] LegacyEnglish(byte[] original) {
             if(Hash(original)!=EnglishHash)throw new InvalidDataException("Unsupported original English text table.");
             using(MemoryStream output=new MemoryStream()) {
                 output.Write(original,0,original.Length);
@@ -113,17 +227,81 @@ namespace CosmicRecompi {
                 return output.ToArray();
             }
         }
-        public static void Ensure(string gameFolder) {
+        public static byte[] English(byte[] original) {
+            return AllAliensPatch.English(NativeEnglish(original));
+        }
+        static byte[] NativeEnglish(byte[] original) {
+            using(MemoryStream output=new MemoryStream()) {
+                byte[] legacy=LegacyEnglish(original);output.Write(legacy,0,legacy.Length);
+                var rows=new List<string[]>(VideoChoices);
+                rows.Add(new string[]{"cosmic_resolution_label","RESOLUTION (RESTART REQUIRED)"});
+                rows.Add(new string[]{"cosmic_frame_limit_label","FRAME LIMIT"});
+                foreach(string[] row in rows) {
+                    byte[] text=Encoding.ASCII.GetBytes(row[1]+"\0");Append(output,Crc(row[0]));Append(output,(uint)text.Length);output.Write(text,0,text.Length);
+                }
+                return output.ToArray();
+            }
+        }
+        static HashSet<uint> TextKeys(byte[] bytes) {
+            if(bytes.Length<4 || bytes.Length>16*1024*1024 || Read(bytes,0)!=0x1badbabe)throw new InvalidDataException("Invalid translation table header or size.");
+            var keys=new HashSet<uint>();int cursor=4;
+            while(cursor<bytes.Length) {
+                uint key=Read(bytes,cursor),length=Read(bytes,cursor+4);
+                if(length==0 || length>bytes.Length-cursor-8 || !keys.Add(key))throw new InvalidDataException("Truncated or duplicate translation entry.");
+                int count=checked((int)length);
+                if(bytes[cursor+8+count-1]!=0)throw new InvalidDataException("Translation text is not terminated.");
+                cursor=checked(cursor+8+count);
+            }
+            if(cursor!=bytes.Length)throw new InvalidDataException("Invalid translation table boundary.");
+            return keys;
+        }
+        public static byte[] MergeTranslation(byte[] original,byte[] translation) {
+            byte[] authored=English(original); // Also verifies the supported original hash.
+            if(!TextKeys(original).SetEquals(TextKeys(translation)))throw new InvalidDataException("The translation must contain exactly the supported game's text IDs.");
+            using(var result=new MemoryStream()) {
+                result.Write(translation,0,translation.Length);
+                result.Write(authored,original.Length,authored.Length-original.Length);
+                byte[] merged=result.ToArray();TextKeys(merged);return merged;
+            }
+        }
+        public static void InstallTranslation(string gameFolder,string storedPatch,byte[] translation) {
+            byte[] previous=File.Exists(storedPatch)?File.ReadAllBytes(storedPatch):null;
+            Ensure(gameFolder,previous);
+            string english=Path.Combine(gameFolder,"global","scripts","xbx_us.txt");
+            byte[] original=File.ReadAllBytes(english+".cosmic-original");
+            MergeTranslation(original,translation); // Validate before committing the source patch.
+            Directory.CreateDirectory(Path.GetDirectoryName(storedPatch));
+            string patchTemp=storedPatch+".new";
+            File.WriteAllBytes(patchTemp,translation);
+            // One canonical atomic commit. Generated text is rebuilt from this
+            // source at every launch, including after an interrupted apply.
+            if(previous==null)File.Move(patchTemp,storedPatch);else File.Replace(patchTemp,storedPatch,null);
+            Ensure(gameFolder,translation);
+        }
+        static bool IsAuthoredTranslation(byte[] original,byte[] current) {
+            try {
+                foreach(byte[] authored in new byte[][]{English(original),NativeEnglish(original)}) {
+                    int suffix=authored.Length-original.Length;
+                    if(current.Length<suffix+4 || !TextKeys(authored).SetEquals(TextKeys(current)))continue;
+                    bool matches=true;
+                    for(int i=0;i<suffix;i++)if(authored[original.Length+i]!=current[current.Length-suffix+i]){matches=false;break;}
+                    if(matches)return true;
+                }
+                return false;
+            }catch(InvalidDataException){return false;}
+        }
+        public static void Ensure(string gameFolder,byte[] translation=null) {
             string scripts=Path.Combine(gameFolder,"global","scripts");
             string frontend=Path.Combine(scripts,"frontend.ds"),english=Path.Combine(scripts,"xbx_us.txt");
             string frontendBackup=frontend+".cosmic-original",englishBackup=english+".cosmic-original";
             byte[] original=File.ReadAllBytes(File.Exists(frontendBackup)?frontendBackup:frontend);
             byte[] originalEnglish=File.ReadAllBytes(File.Exists(englishBackup)?englishBackup:english);
-            byte[] updated=Frontend(original),updatedEnglish=English(originalEnglish);
+            byte[] updated=Frontend(original),updatedEnglish=translation==null?English(originalEnglish):MergeTranslation(originalEnglish,translation);
             byte[] current=File.ReadAllBytes(frontend),currentEnglish=File.ReadAllBytes(english);
             string expected=Hash(updated),expectedEnglish=Hash(updatedEnglish);
             if(Hash(current)==expected && Hash(currentEnglish)==expectedEnglish)return;
-            if(Hash(current)!=FrontendHash || Hash(currentEnglish)!=EnglishHash)
+            if((Hash(current)!=expected && Hash(current)!=FrontendHash && Hash(current)!=Hash(LegacyFrontend(original)) && Hash(current)!=Hash(NativeMenuFrontend(original)) && Hash(current)!=Hash(RathFrontend(original))) ||
+               (Hash(currentEnglish)!=EnglishHash && Hash(currentEnglish)!=Hash(LegacyEnglish(originalEnglish)) && !IsAuthoredTranslation(originalEnglish,currentEnglish)))
                 throw new IOException("The game's menu files were modified by another version. Import your ISO into a new folder; your saves are preserved separately.");
             if(!File.Exists(frontendBackup))File.WriteAllBytes(frontendBackup,original);
             if(!File.Exists(englishBackup))File.WriteAllBytes(englishBackup,originalEnglish);

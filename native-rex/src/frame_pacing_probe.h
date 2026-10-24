@@ -18,8 +18,9 @@ class Pacer {
   }
   ~Pacer(){if(timer_)CloseHandle(timer_);}
   bool SetRate(unsigned rate) {
-    if(rate!=30 && rate!=60)return false;
+    if(rate!=0 && rate!=30 && rate!=60)return false;
     std::lock_guard guard(mutex_);
+    if(!rate){started_=false;next_={};rate_.store(0,std::memory_order_relaxed);return true;}
     if(!timer_)timer_=CreateWaitableTimerExW(nullptr,nullptr,0x00000002,TIMER_MODIFY_STATE|SYNCHRONIZE);
     if(!timer_)timer_=CreateWaitableTimerExW(nullptr,nullptr,0,TIMER_MODIFY_STATE|SYNCHRONIZE);
     if(!timer_)return false;
@@ -29,6 +30,7 @@ class Pacer {
   void Wait() {
     if(!rate_.load(std::memory_order_relaxed))return;
     std::lock_guard guard(mutex_);
+    if(!rate_.load(std::memory_order_relaxed))return;
     if(started_) {
       for(;;) {
         auto remaining=std::chrono::duration_cast<std::chrono::nanoseconds>(next_-Clock::now()).count();

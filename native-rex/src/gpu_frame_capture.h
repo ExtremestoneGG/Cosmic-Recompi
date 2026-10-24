@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <thread>
 #include <chrono>
+#include "diagnostic_paths.h"
 #include "../../third_party/rexglue-sdk/thirdparty/renderdoc/renderdoc_app.h"
 
 // Internal diagnostic only. Never enabled by ordinary launchers.
@@ -16,14 +17,16 @@ inline void Ben10InitializeFrameCapture() {
   if (!std::getenv("BEN10_RENDERDOC_CAPTURE")) return;
   if (!std::getenv("BEN10_DIAGNOSTIC_CACHE"))
     throw std::runtime_error("GPU frame capture requires diagnostic build");
-  std::filesystem::create_directories("D:/Ben 10 recomp/data/analysis/renderdoc");
+  const auto capture_root=Ben10DiagnosticDirectory()/"renderdoc";
+  std::filesystem::create_directories(capture_root);
   // Keep the module loaded until process exit: D3D12 objects retain hooks.
   HMODULE module=GetModuleHandleW(L"renderdoc.dll");
   auto get=module?reinterpret_cast<pRENDERDOC_GetAPI>(GetProcAddress(module,"RENDERDOC_GetAPI")):nullptr;
   auto& api=Ben10FrameCaptureStorage();
   if (!get || !get(eRENDERDOC_API_Version_1_0_0,reinterpret_cast<void**>(&api)) || !api)
     throw std::runtime_error("RenderDoc API unavailable");
-  api->SetLogFilePathTemplate("D:/Ben 10 recomp/data/analysis/renderdoc/ben10-rtv");
+  const auto capture_template=(capture_root/"ben10-rtv").string();
+  api->SetLogFilePathTemplate(capture_template.c_str());
   api->MaskOverlayBits(0,0);
 }
 inline bool Ben10TriggerFrameCapture() {
