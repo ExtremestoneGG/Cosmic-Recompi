@@ -97,5 +97,11 @@
   },
   "full_campaign": false,
   "stable_60_FPS": false,
-  "flicker_above_30_FPS_fixed": false
+  "flicker_above_30_FPS_fixed": false,
+  "ultimate_hotfix": {
+    "user_confirmed": true,
+    "timing_cases": 2660,
+    "eight_banks_parity": true,
+    "full_campaign_verified": false
+  }
 }

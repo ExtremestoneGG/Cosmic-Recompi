@@ -9,9 +9,11 @@ Experimental Windows 10/11 x64 native port of **Ben 10 Ultimate Alien: Cosmic De
 
 **Bring your own supported copy.** No ISO, XEX, original assets, generated game source or personal saves are distributed.
 
-[Download](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases/tag/v0.4.0-alpha.2-installer.1) · [User guide](USER_GUIDE.md) · [Build guide](BUILD.md) · [Validation](VALIDATION.json) · [Sources](SOURCES.md)
+[Download](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases/tag/v0.4.0-alpha.2-hotfix.1) · [User guide](USER_GUIDE.md) · [Build guide](BUILD.md) · [Validation](VALIDATION.json) · [Sources](SOURCES.md)
 
 Latest update: [animation and lever crash fixes](RELEASE_NOTES.md), including a manual phase-1 lever test. Rath upgrades with All Aliens disabled remain under investigation.
+
+Latest hotfix: **Ultimate Humungousaur transformation with All Aliens**, manually confirmed. [Details](RELEASE_NOTES.md).
 
 ## Alpha v0.4.0-alpha.2
 

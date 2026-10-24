@@ -1,22 +1,39 @@
-# Installer Improvement — Alpha 0.4.0-alpha.2
+[English](#english) | [Português (Brasil)](#portugues)
 
-The installer now asks where to install before extracting anything. The selected
-folder contains app/, game-data/ (including saves and game logs), logs/ and temp/.
-Launching the downloaded EXE from the desktop no longer automatically creates a
-game folder there. Cancel leaves the destination untouched. To update, select
-the existing CosmicRecomp folder. Existing saves are preserved. After preparing
-your ISO, use the desktop shortcut or the installed launcher to play.
+<a id="english"></a>
+# Urgent hotfix — Ultimate transformation with All Aliens
 
-This updates the installer only. The game runtime and bridge are identical to
-Alpha 0.4.0-alpha.2. Its known issues, including above-30-FPS judder and Rath
-upgrade availability with All Aliens disabled, remain open.
+Fixes the reported crash when the opening sequence transforms into Ultimate
+Humungousaur with All Aliens enabled. The logged missing resource was
+`97D86BBB`, the original Ultimate Humungousaur `transform_01` animation.
 
-## Português (Brasil)
+The animation preparation now includes all five original Ultimate-form archives,
+in addition to ordinary forms and level residents. Existing streamed clips remain
+authoritative. Exact outputs from both previous converters migrate automatically;
+unknown edits are rejected and original backups remain intact.
 
-O instalador pergunta onde instalar antes de extrair arquivos. A pasta escolhida
-recebe app/, game-data/ (saves e logs do jogo), logs/ e temp/. Não cria mais uma
-pasta do jogo automaticamente ao lado do EXE baixado. Cancelar não extrai nada.
-Para atualizar, selecione a pasta CosmicRecomp existente. Os saves são mantidos.
-Após preparar a ISO, abra pelo atalho ou pelo launcher instalado.
+The user repeated the failing transformation and confirmed it works. All eight
+banks passed C#/Python parity and native hash lookup checks; 2,660 clip timing
+cases match the original initializer. This does not establish full campaign or
+every Ultimate ability. No performance gain is claimed.
 
-Somente o instalador mudou; runtime e bridge são os mesmos da Alpha anterior.
+Includes the previous installer folder-selection improvement. Select the same
+installation folder to update and preserve game-data/user. The game executable
+is unchanged and still identifies itself as Alpha 0.4.0-alpha.2; this hotfix updates
+the preparation bridge. Above-30-FPS judder and Rath upgrade availability remain
+open. No game data or saves are distributed. Bring your own supported copy.
+
+---
+<a id="portugues"></a>
+# Hotfix urgente — transformação Suprema com All Aliens
+
+Corrige o crash confirmado na transformação inicial em Humungousaur Supremo com
+All Aliens ligado. Faltava preparar sua animação original transform_01. A correção
+inclui as cinco formas Supremas, preserva os dados originais e aceita a atualização
+dos bancos produzidos pelas versões anteriores. O usuário repetiu a transformação
+e confirmou que funcionou. Oito bancos e 2.660 casos de tempo passaram nos testes.
+
+Mantém o instalador com escolha de pasta. Selecione a instalação existente para
+atualizar e preserve game-data/user. O executável do jogo continua na Alpha 2;
+este hotfix altera a preparação dos recursos. Campanha completa, tremedeira acima
+de 30 FPS e upgrades do Rath continuam sem validação/correção completa.

@@ -364,13 +364,21 @@ namespace CosmicRecompi {
         internal static void Ensure(string game) {
             string[] forms={"ad","af","bc","ec","hm","nr","ra","sf","sm","ts","wh"};
             var archives=new List<byte[]>();foreach(string form in forms)archives.Add(File.ReadAllBytes(Path.Combine(game,"global","g_"+form+".xbx")));
+            var ordinaryArchives=new List<byte[]>(archives);
+            // Scripted Ultimate transformations still use the same resource
+            // lookup while All Aliens has replaced the current loadout.
+            foreach(string form in new[]{"ubc","uec","uhm","usf","usm"})
+                archives.Add(File.ReadAllBytes(Path.Combine(game,"global","g_"+form+".xbx")));
             foreach(string level in Directory.GetDirectories(game,"l_*")) {
             // Camera/mission activation can request an NPC animation through the
             // same streamed-resource path as an additional player form. Include
             // this level's own resident clips too; never replace existing clips.
             var levelArchives=new List<byte[]>(archives);
+            var previousLevelArchives=new List<byte[]>(ordinaryArchives);
             string[] residents=Directory.GetFiles(level,"g_*.xbx");Array.Sort(residents,StringComparer.Ordinal);
-            foreach(string resident in residents)levelArchives.Add(File.ReadAllBytes(resident));
+            foreach(string resident in residents) {
+                byte[] bytes=File.ReadAllBytes(resident);levelArchives.Add(bytes);previousLevelArchives.Add(bytes);
+            }
             foreach(string path in Directory.GetFiles(level,"a_*_s.xbx")) {
                 string backup=path+".cosmic-animation-original",temporary=path+".cosmic-animation-new";
                 byte[] original=File.ReadAllBytes(File.Exists(backup)?backup:path),updated=Merge(original,levelArchives);
@@ -381,7 +389,8 @@ namespace CosmicRecompi {
                     // A byte-identical output of our previous converter is a
                     // supported upgrade, not an arbitrary third-party edit.
                     if(currentHash!=Convert.ToBase64String(hash.ComputeHash(original)) &&
-                       currentHash!=Convert.ToBase64String(hash.ComputeHash(Merge(original,archives,false))))
+                       currentHash!=Convert.ToBase64String(hash.ComputeHash(Merge(original,ordinaryArchives,false))) &&
+                       currentHash!=Convert.ToBase64String(hash.ComputeHash(Merge(original,previousLevelArchives))))
                         throw new IOException("Another patch modified the animation bank: "+Path.GetFileName(path));
                 }
                 if(!File.Exists(backup))File.WriteAllBytes(backup,original);

@@ -173,7 +173,7 @@
     ],
     "game_assets_included": false
   },
-  "release": "v0.4.0-alpha.2",
+  "release": "v0.4.0-alpha.2-hotfix.1",
   "frontend_files": [
     {
       "name": "CosmicRecomp.exe",
@@ -181,7 +181,7 @@
     },
     {
       "name": "CosmicBridge.exe",
-      "sha256": "764f87f9e68ed0ebf07a9c79239d3df4a733689a21428806c1230ec67ed0268d"
+      "sha256": "b34b6cd9626f3279ccaa7b901edbd3be95808542eb436c868a013faf69474aac"
     }
   ],
   "correctness_hotfix": {
@@ -310,5 +310,13 @@
     "flicker_above_30_FPS_fixed": false
   },
   "installer_release": "v0.4.0-alpha.2-installer.1",
-  "installer_source_sha256": "92633035265431db540b7d15bcf351112b8daf4afdf56571d12ee8b04f9af0bf"
+  "installer_source_sha256": "92633035265431db540b7d15bcf351112b8daf4afdf56571d12ee8b04f9af0bf",
+  "ultimate_hotfix": {
+    "user_confirmed_transformation": true,
+    "all_aliens_enabled": true,
+    "missing_key": "97D86BBB",
+    "original_animation": "Ultimate Humungousaur transform_01",
+    "timing_cases": 2660,
+    "full_campaign_verified": false
+  }
 }
