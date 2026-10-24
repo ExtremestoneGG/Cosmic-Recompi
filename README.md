@@ -25,6 +25,27 @@ Latest update: [animation and lever crash fixes](RELEASE_NOTES.md), including a 
 
 All Aliens starts **OFF**. Hold LT and tap RT to change pages; RT abilities are suppressed while LT is held. Normal Rath progression and the original cheat are preserved. All Aliens makes Rath available without changing the profile unlock. Four Arms is not included.
 
+## Keyboard and controllers
+
+Controllers are supported natively through the SDK SDL backend, including XInput-compatible controllers. Prompts retain Xbox button names. Contextual actions follow the original game.
+
+| Keyboard | Xbox input / purpose |
+| --- | --- |
+| WASD | Left stick: movement |
+| Arrows | Right stick: camera |
+| Space or semicolon | A: confirm / jump |
+| Backspace or apostrophe | B: back / original B action |
+| L / P | X / Y |
+| Q or I | LT: alien wheel |
+| E or O | RT: abilities; next wheel page while LT held with All Aliens ON |
+| 1 / 3 | LB / RB |
+| F / K | Left / right stick click |
+| Shift + arrows | D-pad |
+| Enter or X | Start / pause |
+| Tab or Z | Back / Select |
+
+With All Aliens ON, hold Q and tap E to cycle pages. Mouse camera is opt-in and disabled by default. Mappings checked against the SDK keyboard driver and launcher configuration; not every contextual keyboard action has been playtested.
+
 ## Getting started
 
 1. Put the portable EXE in a writable folder on any drive and run it. It creates `CosmicRecomp` beside itself.
@@ -54,4 +75,26 @@ Wipe Data pede confirmação, fecha o jogo, guarda os dados deste título em `ga
 
 A meta de 60 FPS estáveis e a tremedeira acima de 30 FPS continuam pendentes. A campanha completa e o crash antigo ao morrer no primeiro chefe ainda precisam de verificação. B para voltar ao Press Start também está pendente. Esta atualização não anuncia ganho novo de FPS. Consulte as [notas](RELEASE_NOTES.md), [testes](TESTING.md) e [origens](SOURCES.md).
 
-Keyboard mappings and native controller support: [User guide](USER_GUIDE.md#keyboard-and-controllers).
+## Teclado e controle
+
+Controles são aceitos nativamente via SDL, incluindo modelos compatíveis com XInput.
+Os avisos do jogo continuam mostrando os botões do Xbox.
+
+| Tecla | Ação / botão Xbox |
+| --- | --- |
+| WASD | Movimento |
+| Setas | Câmera |
+| Espaço ou ponto e vírgula | A: confirmar / pular |
+| Backspace ou apóstrofo | B: voltar / ação original |
+| L / P | X / Y |
+| Q ou I | LT: seleção de aliens |
+| E ou O | RT: habilidades / próxima página com LT segurado e All Aliens ligado |
+| 1 / 3 | LB / RB |
+| F / K | Clique do analógico esquerdo / direito |
+| Shift + setas | Direcional |
+| Enter ou X | Start / pausa |
+| Tab ou Z | Back / Select |
+
+Com All Aliens ligado, segure Q e toque E para trocar páginas. Mouse desativado
+por padrão. Mapeamento conferido no código e configuração; nem toda ação
+contextual foi testada em gameplay.
