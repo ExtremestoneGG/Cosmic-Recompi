@@ -16,9 +16,9 @@ The native frontend uses Dear ImGui, SDL3 and OpenGL. Its menu layout follows Fu
 
 Play starts an independent C# bridge and destroys the frontend. The bridge waits for the frontend process to exit before starting the game. Therefore its window, graphics context and animation do not run during gameplay. The launcher always requires Play. Returning uses a per-launch named event; the bridge reopens the frontend.
 
-The importer derives two menu files from the user's supported copy, keeping validated originals as backups. Original pause-menu QUIT is preserved; QUIT TO LAUNCHER has its own confirmation. VIDEO is added to original OPTIONS. SDK-dispatched callbacks open a native SDK-rendered video panel; a deferred guest callback restores the original Options menu afterward. No original bytecode is shipped.
+The importer derives two menu files from the user's supported copy, keeping validated originals as backups. Original pause-menu QUIT is preserved; QUIT TO LAUNCHER has its own confirmation. VIDEO is added to original OPTIONS. Authored rows and callbacks reuse the original menu templates, stack, input handling and confirmation dialogs. Video options do not open a host popup. A selected setting resets the original completed-action state before showing its submenu again. No original bytecode is shipped.
 
-Video preferences live in `user/pc-video.ini`. Resolution applies on next startup; the internal 30/60 Hz pacer updates live. Uncapped is disabled. A 60 Hz cap is not evidence of correct 60 FPS simulation or sufficient GPU performance.
+Video preferences live in `user/pc-video.ini`. Presentation/output size and display modes update live through the existing SDK SDL window. The internal 30/60 Hz pacer updates live; Unlimited disables it. The single Show FPS preference controls both counter and frame-time graph. Borderless uses desktop dimensions and these settings do not enable internal supersampling. A 60 Hz cap is not evidence of correct 60 FPS simulation or sufficient GPU performance.
 
 The bridge supplies its owned startup settings explicitly on the command line. This avoids dependence on the SDK's narrow TOML filename handling when the installation path contains accented characters. Relative `logs/runtime.log` is resolved from the selected installation, not the binary directory. Original assets and saves continue to use the wide portable-root override.
 
@@ -34,7 +34,7 @@ The launcher applies retained graphics settings and the selected 30/60 FPS cap, 
 
 ## Frame counting
 
-The overlay counts game submissions through `VdSwap`, separately from repeated host-window presentations. External counters may report repeated presentations as additional FPS. The 30 Hz playback cadence improved camera behavior in manual testing. Correct simulation/animation at 60 Hz is not established merely by seeing a higher presentation counter, so uncapped mode remains disabled.
+The overlay counts game submissions through `VdSwap`, separately from repeated host-window presentations. External counters may report repeated presentations as additional FPS. The 30 Hz playback cadence improved camera behavior in manual testing. Correct simulation/animation at 60 Hz is not established merely by seeing a higher presentation counter, and Unlimited remains an experimental diagnostic option with a known flicker/judder issue.
 
 ## Verified scope
 
@@ -101,3 +101,13 @@ A build de testes usa a cadência interna de 30 Hz que melhorou o movimento da c
 - Nove testes sintéticos do parser: catálogo válido, imagem truncada, travessia de caminhos, nome reservado, ponto final, endereço fora da imagem, ciclo de árvore, assinatura final inválida e XEX de edição não suportada.
 
 Não foram confirmados: campanha completa, todas as GPUs/drivers, todos os checkpoints, compilação em máquina limpa ou desempenho estável a 60 FPS. A integração de vídeo ao OPTIONS original passou pela reprodução automática descrita em TESTING.md.
+
+## Animation streams and reset lifecycle
+
+All Aliens merges the ordinary forms' resident animation clips into level stream banks. Resident channel indices are converted to inline payload offsets; physical channel-record order, duplicate records and original level clips are preserved. The C# installer and independent Python converter produce identical banks in the fixture tests. Data is derived locally from the user's copy and is never distributed.
+
+The Gameplay input pre-handler normally consumes A to confirm the entire settings screen. Only A on the new Wipe Data row bypasses that interceptor and reaches the ordinary option callback. Original checkbox confirmation and B cancellation retain their original handler. The confirmation raises an owned reset event; the bridge waits for process exit and the installation lock before archiving this title's profile directories. No save directory is deleted.
+
+The SDL extension is compiled inside the SDK runtime to use its existing SDL instance. It configures output size and exclusive display modes; the SDK presenter still owns resizing and presentation. No renderer/kernel replacement is introduced. The matching native-menu ABI is 7.
+
+Português: animações são convertidas dos próprios dados locais do usuário, preservando clipes originais e ordem física dos canais. Wipe Data usa a confirmação original e só arquiva os perfis depois do encerramento. A extensão de apresentação usa a janela SDL existente do SDK; não cria outro renderizador.

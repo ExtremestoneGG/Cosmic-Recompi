@@ -79,7 +79,13 @@ namespace CosmicRecompi {
             if(Hash(original)!=FrontendHash)throw new InvalidDataException("Unsupported original frontend script.");
             if(Read(original,0)!=0x1badbabe || Read(original,4)!=103)throw new InvalidDataException("Unsupported frontend header.");
             using(MemoryStream output=new MemoryStream()) {
-                Append(output,0x1badbabe);Append(output,107);int cursor=8,patched=0;byte[] quit=null;uint quitArguments=0;
+                Append(output,0x1badbabe);Append(output,
+#if COSMIC_NATIVE_SETTINGS
+                    109
+#else
+                    107
+#endif
+                    );int cursor=8,patched=0;byte[] quit=null;uint quitArguments=0;
                 for(int i=0;i<103;i++) {
                     uint identity=Read(original,cursor),arguments=Read(original,cursor+4);
                     int size=checked((int)Read(original,cursor+8)*4);
@@ -92,6 +98,20 @@ namespace CosmicRecompi {
                 }
                 if(cursor!=original.Length || patched!=2)throw new InvalidDataException("Invalid original menu boundaries.");
                 if(quit==null)throw new InvalidDataException("Original confirmation missing.");
+#if COSMIC_NATIVE_SETTINGS
+                byte[] wipe=(byte[])quit.Clone();int wipeCallback=0,wipeQuestion=0;
+                foreach(int p in Tokens(wipe)) {
+                    if((Read(wipe,p)&255)==7 && Read(wipe,p+4)==0xd4abb75d){Write(wipe,p+4,Crc("CosmicWipeConfirmed"));wipeCallback++;}
+                    if((Read(wipe,p)&255)==5 && Read(wipe,p+4)==0x78ea141f){Write(wipe,p+4,Crc("cosmic_wipe_question"));wipeQuestion++;}
+                }
+                if(wipeCallback!=1 || wipeQuestion!=1)throw new InvalidDataException("Unsupported reset confirmation.");
+                using(var prompt=new MemoryStream()) {
+                    foreach(uint word in new uint[]{0x00000507,Crc("overlay"),0x00000207,Crc("overlay"),0x00000217,Crc("cosmic_wipe_prompt"),0x01050020,1})Append(prompt,word);
+                    prompt.Write(wipe,0,wipe.Length);
+                    Function(output,"CosmicWipeProgress",quitArguments,prompt.ToArray());
+                }
+                Wrapper(output,"CosmicWipeConfirmed","cosmic_wipe_progress");
+#endif
                 int replacements=0;
                 foreach(int p in Tokens(quit))if((Read(quit,p)&255)==7 && Read(quit,p+4)==0xd4abb75d){Write(quit,p+4,Crc("CosmicExitToLauncher"));replacements++;}
                 if(replacements!=1)throw new InvalidDataException("Unexpected confirmation layout.");
@@ -111,6 +131,13 @@ namespace CosmicRecompi {
             new string[]{"cosmic_fps_30", "30 FPS", "cosmic_set_30"},
             new string[]{"cosmic_fps_60", "60 FPS", "cosmic_set_60"},
             new string[]{"cosmic_fps_unlimited", "UNLIMITED", "cosmic_set_unlimited"}
+#if COSMIC_NATIVE_SETTINGS
+            ,new string[]{"cosmic_overlay_on_label", "ON", "cosmic_overlay_on"}
+            ,new string[]{"cosmic_overlay_off_label", "OFF", "cosmic_overlay_off"}
+            ,new string[]{"cosmic_windowed_label", "WINDOWED", "cosmic_windowed"}
+            ,new string[]{"cosmic_borderless_label", "BORDERLESS FULLSCREEN", "cosmic_borderless"}
+            ,new string[]{"cosmic_exclusive_label", "EXCLUSIVE FULLSCREEN", "cosmic_exclusive"}
+#endif
         };
         static void Function(Stream output,string name,uint arguments,byte[] code) {
             Append(output,Crc(name));Append(output,arguments);Append(output,(uint)(code.Length/4));output.Write(code,0,code.Length);
@@ -141,20 +168,44 @@ namespace CosmicRecompi {
             }
             if(template==null)throw new InvalidDataException("Original Options menu missing.");
             using(MemoryStream output=new MemoryStream()) {
-                Append(output,0x1badbabe);Append(output,Read(legacy,4)+9);cursor=8;
+                Append(output,0x1badbabe);Append(output,Read(legacy,4)+(uint)(VideoChoices.Length+2
+#if COSMIC_NATIVE_SETTINGS
+                    +2
+#endif
+                    ));cursor=8;
                 for(int i=0;i<Read(legacy,4);i++) {
                     uint identity=Read(legacy,cursor);int bytes=checked((int)Read(legacy,cursor+8)*4);
                     if(identity==Crc("CosmicVideoOptions"))Function(output,"CosmicVideoOptions",1,NativeMenu(template,"cosmic_video_menu","cosmic_video_label",new string[][] {
-                        new string[]{"cosmic_resolution_label","RESOLUTION (RESTART REQUIRED)","CosmicResolutionOptions"},
-                        new string[]{"cosmic_frame_limit_label","FRAME LIMIT","CosmicFrameOptions"}}));
+                        new string[]{"cosmic_resolution_label","OUTPUT RESOLUTION","CosmicResolutionOptions"},
+                        new string[]{"cosmic_frame_limit_label","FRAME LIMIT","CosmicFrameOptions"}
+#if COSMIC_NATIVE_SETTINGS
+                        ,new string[]{"cosmic_overlay_label","SHOW FPS","CosmicOverlayOptions"}
+                        ,new string[]{"cosmic_display_label","DISPLAY MODE","CosmicDisplayOptions"}
+#endif
+                        }));
                     else output.Write(legacy,cursor,12+bytes);
                     cursor+=12+bytes;
                 }
                 Function(output,"CosmicResolutionOptions",1,NativeMenu(template,"cosmic_resolution_menu","cosmic_resolution_label",new string[][] {VideoChoices[0],VideoChoices[1],VideoChoices[2],VideoChoices[3]}));
                 Function(output,"CosmicFrameOptions",1,NativeMenu(template,"cosmic_frame_menu","cosmic_frame_limit_label",new string[][] {VideoChoices[4],VideoChoices[5],VideoChoices[6]}));
+#if COSMIC_NATIVE_SETTINGS
+                Function(output,"CosmicOverlayOptions",1,NativeMenu(template,"cosmic_overlay_menu","cosmic_overlay_label",new string[][] {VideoChoices[7],VideoChoices[8]}));
+                Function(output,"CosmicDisplayOptions",1,NativeMenu(template,"cosmic_display_menu","cosmic_display_label",new string[][] {VideoChoices[9],VideoChoices[10],VideoChoices[11]}));
+#endif
                 foreach(string[] choice in VideoChoices) {
                     using(MemoryStream callback=new MemoryStream()) {
-                        foreach(uint word in new uint[]{0x00000507,Crc("overlay"),0x00000207,Crc("overlay"),0x00000217,Crc(choice[2]),0x01050020,1,0x21})Append(callback,word);
+                        foreach(uint word in new uint[]{0x00000507,Crc("overlay"),0x00000207,Crc("overlay"),0x00000217,Crc(choice[2]),0x01050020,1})Append(callback,word);
+#if COSMIC_NATIVE_SETTINGS
+                        // Selecting a row hides the original menu before its
+                        // callback runs. A setting has no child menu to push;
+                        // reset its completed action and show the current one.
+                        int choiceIndex=Array.IndexOf(VideoChoices,choice);
+                        string owner=choiceIndex<4?"cosmic_resolution_menu":choiceIndex<7?"cosmic_frame_menu":choiceIndex<9?"cosmic_overlay_menu":"cosmic_display_menu";
+                        foreach(uint word in new uint[]{0x00000207,Crc(owner),0x00000502,0x00050219,0x84fe6ee3,
+                            0x00000503,0,0x00050219,0xa393d2fb})Append(callback,word);
+                        foreach(uint word in new uint[]{0x00010502,0x00000207,Crc("MenuStack_ShowCurrentMenu"),0x01050220,1})Append(callback,word);
+#endif
+                        Append(callback,0x21);
                         Function(output,choice[2]+"_row",1,callback.ToArray());
                     }
                 }
@@ -165,7 +216,11 @@ namespace CosmicRecompi {
                 for(int i=0;i<Read(result,4);i++) {
                     int bytes=checked((int)Read(result,cursor+8)*4);byte[] code=new byte[bytes];Buffer.BlockCopy(result,cursor+12,code,0,bytes);
                     uint identity=Read(result,cursor);
-                    if(identity==Crc("CosmicResolutionOptions") || identity==Crc("CosmicFrameOptions"))
+                    if(identity==Crc("CosmicResolutionOptions") || identity==Crc("CosmicFrameOptions")
+#if COSMIC_NATIVE_SETTINGS
+                        || identity==Crc("CosmicOverlayOptions") || identity==Crc("CosmicDisplayOptions")
+#endif
+                        )
                         foreach(int p in Tokens(code))if((Read(code,p)&255)==7)
                             foreach(string[] choice in VideoChoices)if(Read(code,p+4)==Crc(choice[2]))Write(result,cursor+12+p+4,Crc(choice[2]+"_row"));
                     cursor+=12+bytes;
@@ -178,6 +233,11 @@ namespace CosmicRecompi {
         }
         static byte[] RathFrontend(byte[] original) {
             byte[] menus=NativeMenuFrontend(original);
+#if COSMIC_NATIVE_SETTINGS
+            // Preserve normal progression and the original cheat. All Aliens
+            // selects Rath through its temporary pages without changing saves.
+            return menus;
+#else
             using(MemoryStream output=new MemoryStream()) {
                 Append(output,Read(menus,0));Append(output,Read(menus,4));int cursor=8,patched=0;
                 for(int i=0;i<Read(menus,4);i++) {
@@ -216,6 +276,7 @@ namespace CosmicRecompi {
                 if(patched!=1 || cursor!=menus.Length)throw new InvalidDataException("Expected main-menu unlock point missing.");
                 return output.ToArray();
             }
+#endif
         }
         static byte[] LegacyEnglish(byte[] original) {
             if(Hash(original)!=EnglishHash)throw new InvalidDataException("Unsupported original English text table.");
@@ -234,8 +295,20 @@ namespace CosmicRecompi {
             using(MemoryStream output=new MemoryStream()) {
                 byte[] legacy=LegacyEnglish(original);output.Write(legacy,0,legacy.Length);
                 var rows=new List<string[]>(VideoChoices);
-                rows.Add(new string[]{"cosmic_resolution_label","RESOLUTION (RESTART REQUIRED)"});
+                rows.Add(new string[]{"cosmic_resolution_label",
+#if COSMIC_NATIVE_SETTINGS
+                    "OUTPUT RESOLUTION"
+#else
+                    "RESOLUTION (RESTART REQUIRED)"
+#endif
+                    });
                 rows.Add(new string[]{"cosmic_frame_limit_label","FRAME LIMIT"});
+#if COSMIC_NATIVE_SETTINGS
+                rows.Add(new string[]{"cosmic_overlay_label","SHOW FPS"});
+                rows.Add(new string[]{"cosmic_display_label","DISPLAY MODE"});
+                rows.Add(new string[]{"cosmic_wipe_label","WIPE DATA"});
+                rows.Add(new string[]{"cosmic_wipe_question","RESET PROGRESS? BACKUP KEPT. RETURNING TO LAUNCHER."});
+#endif
                 foreach(string[] row in rows) {
                     byte[] text=Encoding.ASCII.GetBytes(row[1]+"\0");Append(output,Crc(row[0]));Append(output,(uint)text.Length);output.Write(text,0,text.Length);
                 }

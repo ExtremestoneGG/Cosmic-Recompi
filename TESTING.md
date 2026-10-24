@@ -1,56 +1,34 @@
-# v0.3.0-test.1 validation scope
-
-The Rath-disabled profile has automated authored-VM tests (three enum identities, ten selectable forms, twelve load completions and balanced unloads), C# installer/backup/idempotency checks and guards in all four original transformation selection paths. These are policy and integration checks, not proof of every form's gameplay.
-
-Rath's transformation repeatedly failed on a missing resource before appearance. It is excluded, not fixed. A speculative animation lookup change did not help and is absent from this release. The RT conflict change filters only the state delivered to the original game, leaving raw RT edges available for page selection.
-
-Earlier user checks confirmed original Video menu interaction, gamepad input and Save/Continue. Full campaign, boss death/reload, all All Aliens forms and stable 60 FPS remain unverified. This release makes no new FPS-gain claim. Additional native probe results are recorded in the release provenance; do not turn a partial or interrupted probe into a pass.
-
-## Português
-
-Os testes automáticos verificam a exclusão do Rath, o programa próprio, a instalação, backups e os quatro caminhos de seleção. Não comprovam todas as transformações. O crash do Rath foi reproduzido, e ele está excluído, não corrigido. O teste especulativo de busca de animação foi removido. Menu Video, controle e Save/Continue tiveram confirmação anterior do usuário. A campanha, morte/reload, todos os aliens e 60 FPS estáveis continuam sem validação completa.
-
----
-
-## Earlier validation history
-
-[English](#english) | [PortuguÃªs (Brasil)](#portugues)
+[English](#english) | [Português (Brasil)](#portugues)
 
 <a id="english"></a>
+# Alpha validation scope
 
-# Test scope
+`VALIDATION.json` records the release gate. It separates unit/fixture evidence, real native-process checks and earlier user confirmation. It does not declare full game compatibility.
 
-For v0.2.1-test.1: the restored `0x8210BB88` callback passed 8,192 comparisons with an interpreter of its original instructions. The actual registered native callback also ran against a private guest allocation, invoking the original callee and changing only its expected field. The resulting game ran a 180-second isolated smoke test. The real SDK invalid-dispatch trap was exercised in a disposable probe: it wrote register/guest-stack/native-stack context and still failed normally. These tests do **not** reproduce or fix the separate first-boss death crash at address zero.
+| Area | Evidence | Limit |
+| --- | --- | --- |
+| Animation conversion | Independent C# and Python output matched across eight level stream banks; original clips preserved, dictionary lookup and repeated installation checked | Format and installation checks do not establish every animation's gameplay |
+| Transformations | Eleven ordinary forms visually appeared in the recorded Paris corridor; Rath rechecked with the new presentation runtime | Other levels, extended abilities and combat remain open |
+| Video menus | Real original-menu callbacks applied Show FPS OFF/ON and window/display choices | Native GPU-only captures omit later host UI/font drawing |
+| Live output size | One native PID changed client size 1280×720 → 1920×1080 → 1280×720 | Output/presentation size, not internal supersampling |
+| Fullscreen modes | Visible startup samples showed exclusive 1280×720 and borderless desktop 1920×1080 without window captions; in-game mode callbacks accepted | One monitor/driver configuration; unsupported modes are rejected |
+| Wipe Data | Opened confirmation, canceled, reopened and confirmed; game exited before archiving and launcher reopened | Disposable copy only; original user saves were never reset |
+| Save archive | Six progress files preserved byte for byte, including additional container headers; native video preferences retained | Does not validate every campaign checkpoint |
+| Save/Continue | Earlier user-confirmed save, shutdown, restart and Continue recovered the checkpoint | Separate evidence from the reset test |
+| SDK runtime | Retained parent relink and recompiled original SDL unit were byte-identical before adding the presentation extension | Full clean-machine rebuild remains unverified |
 
-This test release is not a campaign-completion claim.
+The ISO parser, installation/save-preservation and menu transformation suites also pass. Branch targets, original Rath progression, the authored Gameplay input guard, idempotence and unknown-edit rejection are checked separately from gameplay.
 
-Verified locally:
+No new FPS gain, stable 60 FPS, full campaign completion or fix for the earlier first-boss death crash is claimed. Flicker/judder above 30 FPS is the next priority, investigated with the frame limit disabled. Repeated host presents and an FPS average do not prove unique smooth game frames.
 
-- Supported ISO import: 1,352 files, 5,435,433,670 bytes; paths, sizes and executable SHA-256 checked. Assets were not all hashed a second time.
-- Original in-game save, shutdown, restart and Continue recovered the player's checkpoint.
-- Nine synthetic ISO-reader cases and eight menu-patch checks. Independent patch implementations produced identical bytecode. Unknown modifications are rejected; saves and original backups are preserved.
-- Automated controller replay opened VIDEO from the original OPTIONS menu, saved 1080p / 60 FPS preferences and returned to OPTIONS. QUIT and QUIT TO LAUNCHER are separate pause-menu rows.
-- Native frontend rendering with SDL/OpenGL; the game uses the SDK's Direct3D 12 renderer.
-- End-to-end replay with spaces and accented characters in both folders: direct-start frontend exited before the game, QUIT TO LAUNCHER confirmation exited normally, and the real SDL frontend reopened despite direct-start being enabled. A save sentinel and saved resolution survived the cycle. Both LF and Windows CRLF preferences are accepted.
-- Timer-only pacing: approximately 33.345 ms at 30 Hz and 16.681 ms at 60 Hz. This does not measure gameplay FPS.
-- A synthetic two-frame GIF rendered through the shipping frontend; its fallback also rendered with no background file. The user's final recording has not been supplied or tested.
-
-Still unverified: full campaign, all checkpoints, every controller/GPU, clean-machine native rebuilding, sustained 60 FPS and camera/animation correctness above 30 FPS. The 60 FPS option is experimental; uncapped is disabled.
-
-For reports, include release, GPU/driver, scene, resolution, cap, cache state and sample duration. Performance evidence should include game-frame time percentiles, not only host presentations. Remove personal paths from logs. Do not attach original assets or saves publicly.
-
-Keep an optimization only after improvement exceeds observed variation and its rendered result is checked.
+Local probes use recorded controller input and mute game audio. Their original assets, saves, raw logs and screenshots are not distributed. The public validation summary contains no personal paths or account data.
 
 ---
-
 <a id="portugues"></a>
+# Escopo dos testes Alpha
 
-# Escopo dos testes
+O arquivo VALIDATION.json separa testes de formato/instalação, execução real e confirmação anterior do usuário. Foram verificadas as onze formas na cena de Paris, troca de resolução de saída no mesmo processo, modos de tela no monitor de teste, Show FPS, cancelar/confirmar Wipe Data, backup após encerramento e retorno ao launcher.
 
-Foram verificados a importaÃ§Ã£o da ediÃ§Ã£o suportada (caminhos, tamanhos e hash do executÃ¡vel), save seguido de reinÃ­cio e Continuar, nove casos do leitor de ISO e oito verificaÃ§Ãµes do patch de menus. Duas implementaÃ§Ãµes independentes produziram o mesmo bytecode, preservando backups e saves.
+Os seis arquivos de progresso copiados mantiveram seus hashes no backup; os saves originais ficaram intactos. O teste de Save/Continue confirmado pelo usuário é uma evidência anterior e separada. As verificações de SDK comparam o relink e a unidade SDL original antes da extensão.
 
-A reproduÃ§Ã£o automÃ¡tica abriu VIDEO dentro de OPTIONS, salvou 1080p / 60 FPS e retornou ao menu original. QUIT e QUIT TO LAUNCHER sÃ£o opÃ§Ãµes separadas. O frontend SDL/OpenGL foi renderizado separadamente do jogo Direct3D 12.
-
-O temporizador isolado mediu cerca de 33,345 ms a 30 Hz e 16,681 ms a 60 Hz; isso nÃ£o comprova FPS em gameplay. Campanha completa, todos os checkpoints, outras GPUs, compilaÃ§Ã£o integral em mÃ¡quina limpa e 60 FPS sustentados continuam sem validaÃ§Ã£o. A opÃ§Ã£o de 60 FPS Ã© experimental; FPS ilimitado estÃ¡ desativado.
-
-Informe versÃ£o, GPU/driver, cena, resoluÃ§Ã£o, limite, cache e duraÃ§Ã£o ao reportar problemas. Inclua percentis dos tempos de quadro. Remova dados pessoais e nÃ£o publique recursos originais ou saves.
+Isso não comprova a campanha completa, todas as habilidades, cada GPU/driver ou o crash antigo no primeiro chefe. Não há ganho novo de FPS nem 60 FPS estáveis anunciados. A próxima prioridade é a tremedeira/flicker acima de 30 FPS, com limite desligado. Nenhum dado original, log pessoal ou save é publicado.

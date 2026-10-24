@@ -90,7 +90,7 @@ namespace CosmicRecompi {
             try {
             if (prepareGameMenu != null) prepareGameMenu();
             string log = Path.Combine(folder, "logs", "runtime.log").Replace('\\', '/');
-            string resolution = "720p", frameLimit = "30";
+            string resolution = "720p", frameLimit = "30",fullscreen="false";
             string video = Path.Combine(folder, "user", "pc-video.ini");
             if (File.Exists(video)) foreach (string setting in File.ReadAllLines(video)) {
                 if (setting == "resolution=720p") resolution = "720p";
@@ -100,9 +100,11 @@ namespace CosmicRecompi {
                 if (setting == "frame_limit=30") frameLimit = "30";
                 if (setting == "frame_limit=60") frameLimit = "60";
                 if (setting == "frame_limit=unlimited") frameLimit = "unlimited";
+                if (setting == "display_mode=borderless") fullscreen="true";
+                if (setting == "display_mode=windowed") fullscreen="false";
             }
             // These are launcher-owned settings. User saves live in a different directory.
-            string config = "resolution = \"" + resolution + "\"\nfullscreen = false\nmnk_mode = true\ninput_backend = \"sdl\"\ngpu_allow_invalid_fetch_constants = true\nlog_level = \"info\"\nlog_file = \"" + log.Replace("\"", "\\\"") + "\"\n";
+            string config = "resolution = \"" + resolution + "\"\nfullscreen = "+fullscreen+"\nmnk_mode = true\ninput_backend = \"sdl\"\ngpu_allow_invalid_fetch_constants = true\nlog_level = \"info\"\nlog_file = \"" + log.Replace("\"", "\\\"") + "\"\n";
             File.WriteAllText(Path.Combine(folder, "runtime.toml"), config, new UTF8Encoding(false));
             ProcessStartInfo start = new ProcessStartInfo(Path.Combine(root, "runtime", "ben10.exe"));
             // Keep relative diagnostic output inside the selected installation.
@@ -110,7 +112,7 @@ namespace CosmicRecompi {
             // narrow filename handling for Windows paths containing accents.
             start.UseShellExecute = false; start.WorkingDirectory = folder;
             start.Arguments = "--gpu_plugin xenos --game_data_root \"" + Path.Combine(folder, "game") + "\" --user_data_root \"" + Path.Combine(folder, "user") + "\" --cache_root \"" + Path.Combine(folder, "cache") + "\"";
-            start.Arguments += " --resolution " + resolution + " --fullscreen false --mnk_mode true --input_backend sdl --gpu_allow_invalid_fetch_constants true --log_level info --log_file logs/runtime.log";
+            start.Arguments += " --resolution " + resolution + " --fullscreen "+fullscreen+" --mnk_mode true --input_backend sdl --gpu_allow_invalid_fetch_constants true --log_level info --log_file logs/runtime.log";
             foreach (DictionaryEntry variable in Environment.GetEnvironmentVariables())
                 if (((string)variable.Key).StartsWith("BEN10_", StringComparison.OrdinalIgnoreCase)) start.EnvironmentVariables.Remove((string)variable.Key);
             start.EnvironmentVariables["BEN10_PORTABLE_ROOT"] = folder;
@@ -119,6 +121,10 @@ namespace CosmicRecompi {
             start.EnvironmentVariables["BEN10_GRAPHICS_BACKEND"] = "d3d12";
             start.EnvironmentVariables["BEN10_RENDER_TARGET_PATH"] = "rtv";
             start.EnvironmentVariables["BEN10_RESOLUTION"] = resolution;
+            start.EnvironmentVariables["BEN10_WINDOW_MODE"] = fullscreen=="true"?"borderless":"windowed";
+#if COSMIC_NATIVE_SETTINGS
+            start.EnvironmentVariables["BEN10_PRESENTATION_API"] = "1";
+#endif
             start.EnvironmentVariables["BEN10_INTEL_NATIVE_STENCIL"] = "true";
             start.EnvironmentVariables["BEN10_INTEL_VIEWPORT"] = "true";
             start.EnvironmentVariables["BEN10_INTEL_STENCIL"] = "true";

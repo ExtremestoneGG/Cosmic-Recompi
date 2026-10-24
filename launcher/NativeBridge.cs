@@ -56,22 +56,50 @@ namespace CosmicRecompi {
         internal static void Play(Action<System.Diagnostics.ProcessStartInfo> configureProcess = null, Action<System.Diagnostics.Process> onLauncherOpened = null) {
                         Status("Verifying game files…");
                         string menuApi=Path.Combine(Root,"runtime","pc-menu-api.txt");
-                        if(!File.Exists(menuApi) || File.ReadAllText(menuApi).Trim()!="3")
+#if COSMIC_NATIVE_SETTINGS
+                        const string requiredMenuApi="7";
+#else
+                        const string requiredMenuApi="3";
+#endif
+                        if(!File.Exists(menuApi) || File.ReadAllText(menuApi).Trim()!=requiredMenuApi)
                             throw new IOException("This launcher requires the matching Cosmic Recomp game runtime. Extract the complete new release into a separate folder.");
                         string returnEventName = "Local\\CosmicRecompReturn-" + Guid.NewGuid().ToString("N");
                         bool returnRequested;
+#if COSMIC_NATIVE_SETTINGS
+                        string resetName="Local\\CosmicRecompReset-"+Guid.NewGuid().ToString("N");
+                        using(var resetEvent=new EventWaitHandle(false,EventResetMode.ManualReset,resetName)) {
+#endif
                         using (var returnEvent = new EventWaitHandle(false, EventResetMode.ManualReset, returnEventName)) {
                         using (var game = InstalledGame.Start(Root, false, returnEventName, delegate {
                             string installation=InstalledGame.Installation(Root);
                             string patch=Path.Combine(installation,"patches","translation","xbx_us.txt");
                             GameMenuPatch.Ensure(Path.Combine(installation,"game"),File.Exists(patch)?File.ReadAllBytes(patch):null);
                             AllAliensPatch.Ensure(Path.Combine(installation,"game"));
-                        }, configureProcess)) {
+                        }, delegate(System.Diagnostics.ProcessStartInfo start) {
+#if COSMIC_NATIVE_SETTINGS
+                            start.EnvironmentVariables["BEN10_RESET_PROGRESS_EVENT"]=resetName;
+#endif
+                            if(configureProcess!=null)configureProcess(start);
+                        })) {
                             Status("Game is running."); game.WaitForExit();
                             if (game.ExitCode != 0 && !returnEvent.WaitOne(0)) throw new IOException("The game exited with an error. Check the installation logs.");
                         }
                         returnRequested = returnEvent.WaitOne(0);
                         }
+#if COSMIC_NATIVE_SETTINGS
+                        if(resetEvent.WaitOne(0)) {
+                            string backup=null;
+                            // Process.Exited releases the installation lock on
+                            // another thread. Never archive while it is held.
+                            for(int attempt=0;;attempt++) {
+                                try{backup=SaveReset.ArchiveProgress(InstalledGame.Installation(Root));break;}
+                                catch(IOException){if(attempt==19)throw;Thread.Sleep(50);}
+                            }
+                            Diagnostic("Confirmed progress reset archived after shutdown: "+(backup??"no existing progress"));
+                            returnRequested=true;
+                        }
+                        }
+#endif
                         Status("Ready to play.");
                         if (returnRequested) {
                             var next = new System.Diagnostics.ProcessStartInfo(Path.Combine(Root, "CosmicRecomp.exe"), "--launcher");

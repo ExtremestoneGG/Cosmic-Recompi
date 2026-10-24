@@ -3,8 +3,9 @@
     "origin": "https://github.com/rexglue/rexglue-sdk.git",
     "commit": "c94f5ebdcb3c9d1a460ca48e04f9758448f8d518",
     "local_patch": "sdk-patches/rex-sdk-local.diff",
-    "patch_sha256": "97e25859f571474a331bf6c91b1aae6ef9cd6f964f3271faf418008e66d4fb0d",
-    "diagnostic_include_paths": "Relocatable @COSMIC_CONSUMER@/ placeholder; no SDK algorithm change"
+    "patch_sha256": "a125d54c555afc0d493d91e6fa7e7754e76ae7786450badf1cf6b24092343c35",
+    "diagnostic_include_paths": "Relocatable @COSMIC_CONSUMER@/ placeholder; no SDK algorithm change",
+    "presentation_extension": "SDK SDL window unit: live output size and exclusive display mode; no GPU algorithm change"
   },
   "submodules": [
     {
@@ -101,7 +102,7 @@
   "runtime_files": [
     {
       "name": "ben10.exe",
-      "sha256": "12dbad086022a20710d810655c803b4353540395ddb0e63f72e7acc24008dd73"
+      "sha256": "ae3fb4c34462c87712061d4dcfaf4542c4d44fe411f1ba8cf636c136f508101e"
     },
     {
       "name": "concrt140.dll",
@@ -129,7 +130,7 @@
     },
     {
       "name": "pc-menu-api.txt",
-      "sha256": "24ba1e99dc06b19351323aae0d7370243d586475a634b7f6ff7927fbc72cfaed"
+      "sha256": "9b6dd0f55d1cea37555db317f53a0631f694bd46df8018cc2aeed3d9e2f32f5f"
     },
     {
       "name": "rexgpu-xenos.dll",
@@ -137,7 +138,7 @@
     },
     {
       "name": "rexruntime.dll",
-      "sha256": "132db973604271a7e78b72831012f6a8641047d7604f5a0f83e9806cf7b6333d"
+      "sha256": "9d3d3541ccf0a827c23587aef98edb1bb1adcbb0873e71f1976a352a8ea05916"
     },
     {
       "name": "vccorlib140.dll",
@@ -172,15 +173,15 @@
     ],
     "game_assets_included": false
   },
-  "release": "v0.3.0-test.1",
+  "release": "v0.4.0-alpha.1",
   "frontend_files": [
     {
       "name": "CosmicRecomp.exe",
-      "sha256": "dec866d2fd649e56465051be7b14e6a19ba3ab5396f91a9d9bd07bfe37236389"
+      "sha256": "fad516efa7f1f932638f61f40695cb4d035e0f87410b7b5acf31188e228cb245"
     },
     {
       "name": "CosmicBridge.exe",
-      "sha256": "4d8f7abdfcf327e6129d5d1ac1dd93ff351944660189bcfe92bbd9dae691c603"
+      "sha256": "80fcc3821f4511aaa169b77a862d0620232c4e8a04755fdef129e276e5b8d2f7"
     }
   ],
   "correctness_hotfix": {
@@ -199,22 +200,88 @@
     "clean_machine_full_build_verified": false
   },
   "release_policy": {
-    "Rath_disabled": true,
-    "All_Aliens_available": true,
     "All_Aliens_default": "OFF",
-    "roster_policy": "4+4+2 for a normal four-form preset",
+    "Rath_disabled": false,
+    "normal_Rath_progression_preserved": true,
+    "native_menu_api": 7,
     "native_heap_MiB": 64,
     "RT_ability_suppression_while_LT": true,
-    "failed_animation_lookup_experiment_included": false
+    "animation_stream_conversion": true
   },
   "validation": {
-    "Rath_exclusion_policy_tests": true,
-    "prior_user_Save_Continue": true,
+    "release": "v0.4.0-alpha.1",
+    "status": "Alpha, limited scene-level validation",
+    "original_save_continue": "Previously user-confirmed, separate from reset test",
+    "all_aliens_transformations": {
+      "forms": [
+        "Water Hazard",
+        "NRG",
+        "Swampfire",
+        "AmpFibian",
+        "Big Chill",
+        "Humungousaur",
+        "Spidermonkey",
+        "Echo Echo",
+        "Terraspin",
+        "Armodrillo",
+        "Rath"
+      ],
+      "scene": "Paris corridor checkpoint",
+      "scope": "Earlier eleven-form visual probe; Rath rechecked with current presentation runtime"
+    },
+    "normal_rath_progression_preserved": true,
+    "RT_abilities_suppressed_while_LT_held": true,
+    "show_fps_single_toggle": "Counter and frame-time graph together; ON/OFF callbacks verified",
+    "live_output_resolution": {
+      "same_process": true,
+      "tested_sizes": [
+        [
+          1280,
+          720
+        ],
+        [
+          1920,
+          1080
+        ]
+      ],
+      "internal_supersampling": false
+    },
+    "display_modes": {
+      "exclusive": {
+        "visible_startup_samples": 4,
+        "client": [
+          1280,
+          720
+        ],
+        "caption": false
+      },
+      "borderless": {
+        "visible_startup_samples": 4,
+        "client": [
+          1920,
+          1080
+        ],
+        "caption": false
+      }
+    },
+    "quit_to_launcher": true,
+    "wipe_data": {
+      "cancel_then_confirm": true,
+      "six_progress_files_archived_byte_identically": true,
+      "additional_container_headers_preserved": true,
+      "original_saves_untouched": true,
+      "archive_after_process_exit": true,
+      "native_video_settings_preserved": true,
+      "launcher_reopened": true
+    },
+    "sdk_parent_relink_and_window_unit_identical": true,
+    "GPU_algorithm_changes": false,
     "full_campaign": false,
+    "first_boss_death_regression": false,
     "stable_60_FPS": false,
-    "user_report": "Other forms working; Rath selection crashes",
-    "automated_extra_form_probe": "Armodrillo-linked animation A955F0D1 missing; open issue, not a pass",
-    "Rath_crash_fixed": false,
+    "flicker_above_30_FPS_fixed": false,
+    "next_priority": "Uncapped camera/scenery flicker and cadence",
+    "new_FPS_gain_claimed": false,
     "complete_clean_machine_rebuild": false
   }
 }

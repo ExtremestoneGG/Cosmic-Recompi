@@ -30,12 +30,12 @@ for line in manifest.read_text().splitlines():
     assert hashlib.sha256(p.read_bytes()).hexdigest()==digest,name
     runtime.add(name)
 assert required<=runtime
-assert (stage/'runtime/pc-menu-api.txt').read_text().strip()=='3','All Aliens/native-menu runtime required'
+assert (stage/'runtime/pc-menu-api.txt').read_text().strip() in {'3','7'},'Matching released native-menu runtime required'
 allowed_root={'CosmicRecomp.exe','CosmicBridge.exe','PROVENANCE.json','README.txt',
               'README.md','README.pt-BR.md','SHA256SUMS.txt','LICENSE','LICENSE.txt',
               'ARCHITECTURE.md','BUILD.md','CONTRIBUTING.md','RELEASE_NOTES.md','HOTFIX.md',
               'ROADMAP.md','SECURITY.md','SOURCES.md','TESTING.md','THIRD_PARTY.md',
-              'TROUBLESHOOTING.md','USER_GUIDE.md'}
+              'TROUBLESHOOTING.md','USER_GUIDE.md','VALIDATION.json'}
 crt={'msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll','concrt140.dll',
      'msvcp140_1.dll','msvcp140_2.dll','msvcp140_atomic_wait.dll',
      'msvcp140_codecvt_ids.dll','vccorlib140.dll','vcruntime140_threads.dll'}
@@ -51,7 +51,7 @@ for p in sorted(stage.rglob('*')):
     else:raise AssertionError('Unexpected package directory: '+str(relative))
     assert p.suffix.lower() not in ('.iso','.xex','.pk4','.ds','.pdb','.xbx','.dat')
     data=p.read_bytes()
-    for needle in filter(None,(os.environ.get('USERPROFILE'),'.codex/attachments')):
+    for needle in filter(None,(os.environ.get('USERPROFILE'),Path('.codex','attachments').as_posix())):
         assert needle.lower().encode() not in data.lower(),relative
         assert needle.encode('utf-16-le').lower() not in data.lower(),relative
     files.append((relative,p))

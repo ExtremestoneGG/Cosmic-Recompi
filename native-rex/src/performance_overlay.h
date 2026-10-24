@@ -5,6 +5,7 @@
 #include <chrono>
 #include <algorithm>
 #include <fstream>
+#include "performance_visibility.h"
 
 // Uses the SDK's existing UI renderer. Never generates independent UI frames.
 class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
@@ -13,6 +14,7 @@ class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
   bool NeedsContinuousRepaint() override { return false; }
  protected:
   void OnDraw(ImGuiIO& io) override {
+    if(!ben10::performance_visible.load(std::memory_order_relaxed))return;
     const auto now=std::chrono::steady_clock::now();
     const bool refreshed=now-last_refresh_>=std::chrono::milliseconds(250);
     if(refreshed) {

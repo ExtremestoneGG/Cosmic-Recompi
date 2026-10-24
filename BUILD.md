@@ -1,4 +1,4 @@
-[English](#english) | [PortuguÃªs (Brasil)](#portugues)
+[English](#english) | [Português (Brasil)](#portugues)
 
 <a id="english"></a>
 
@@ -44,7 +44,7 @@ The patch helper runs `git apply --check` and relocates diagnostic include paths
 
 ## Building from the complete SDK source archive
 
-Use `CosmicRecomp-test-0.2.1-sdk-source-fix1.zip` when rebuilding the published SDK. It supersedes the earlier 0.2.1 SDK source archive, which omitted the project-owned direct-resolve bytecode header and retained an include into a private research directory. The shader bytes and published game binaries are unchanged.
+Use `CosmicRecomp-v0.4.0-alpha.1-corresponding-source.zip` when rebuilding the published SDK. It supersedes the earlier 0.2.1 SDK source archive, which omitted the project-owned direct-resolve bytecode header and retained an include into a private research directory. The shader bytes and published game binaries are unchanged.
 
 After extracting the archive, run this from its root:
 
@@ -100,39 +100,39 @@ The launcher expects `runtime/ben10.exe`, `rexruntime.dll`, `rexgpu-xenos.dll`, 
 
 <a id="portugues"></a>
 
-# Desenvolvimento e reproduÃ§Ã£o
+# Desenvolvimento e reprodução
 
-## OrganizaÃ§Ã£o
+## Organização
 
-- `launcher/native/`: frontend Dear ImGui/SDL3/OpenGL; `launcher/`: ponte C# e importador XDVDFS. O antigo host Windows Forms fica apenas como referÃªncia.
-- `native-rex/src/`: integraÃ§Ã£o do tÃ­tulo com ReXGlue, controle de cadÃªncia, overlay e ferramentas de diagnÃ³stico.
-- `native-rex/ben10_manifest.toml`: manifesto de codegen e limites de funÃ§Ãµes corrigidos.
-- `sdk-patches/rex-sdk-local.diff`: alteraÃ§Ãµes locais do SDK em um Ãºnico diff.
-- `native-rex/generated/`: somente integraÃ§Ã£o CMake. As fontes PPC de `generated/default` sÃ£o produzidas localmente e devem permanecer ignoradas.
-- `tests/`: testes sintÃ©ticos do importador; nÃ£o contÃªm arquivos do jogo.
+- `launcher/native/`: frontend Dear ImGui/SDL3/OpenGL; `launcher/`: ponte C# e importador XDVDFS. O antigo host Windows Forms fica apenas como referência.
+- `native-rex/src/`: integração do título com ReXGlue, controle de cadência, overlay e ferramentas de diagnóstico.
+- `native-rex/ben10_manifest.toml`: manifesto de codegen e limites de funções corrigidos.
+- `sdk-patches/rex-sdk-local.diff`: alterações locais do SDK em um único diff.
+- `native-rex/generated/`: somente integração CMake. As fontes PPC de `generated/default` são produzidas localmente e devem permanecer ignoradas.
+- `tests/`: testes sintéticos do importador; não contêm arquivos do jogo.
 
-O SDK utilizado nesta primeira build corresponde Ã  sÃ©rie 0.10.0, fixado no commit `c94f5ebdcb3c9d1a460ca48e04f9758448f8d518`. O tÃ­tulo da janela do SDK pode exibir `v0.10.0-dev.unknown`; nÃ£o interpretar esse texto como identificaÃ§Ã£o precisa do cÃ³digo-fonte. O commit e o diff identificam a base efetiva.
+O SDK utilizado nesta primeira build corresponde à série 0.10.0, fixado no commit `c94f5ebdcb3c9d1a460ca48e04f9758448f8d518`. O título da janela do SDK pode exibir `v0.10.0-dev.unknown`; não interpretar esse texto como identificação precisa do código-fonte. O commit e o diff identificam a base efetiva.
 
 ## Launcher
 
-Obtenha o fork recomp-ui no commit indicado na seÃ§Ã£o em inglÃªs e os submÃ³dulos do SDK. Num terminal de desenvolvimento C++ x64, execute `tools/build_launcher.ps1`: CMake compila o frontend nativo, e o compilador C# do .NET Framework compila a ponte. Os resultados ficam em `build/launcher`; ferramentas nÃ£o sÃ£o instaladas. O SDL da interface Ã© compilado separadamente, com OpenGL, sem alterar o SDL do jogo.
+Obtenha o fork recomp-ui no commit indicado na seção em inglês e os submódulos do SDK. Num terminal de desenvolvimento C++ x64, execute `tools/build_launcher.ps1`: CMake compila o frontend nativo, e o compilador C# do .NET Framework compila a ponte. Os resultados ficam em `build/launcher`; ferramentas não são instaladas. O SDL da interface é compilado separadamente, com OpenGL, sem alterar o SDL do jogo.
 
-O launcher procura `runtime/ben10.exe`, `runtime/rexruntime.dll`, `runtime/rexgpu-xenos.dll` e dependÃªncias declaradas em `runtime/SHA256SUMS.txt`. O manifesto verifica integridade de cÃ³pia; nÃ£o Ã© uma assinatura. Para testar DLLs do SDK modificadas, recalcule o manifesto local, preservando nomes e o formato `sha256`, dois espaÃ§os, nome do arquivo.
+O launcher procura `runtime/ben10.exe`, `runtime/rexruntime.dll`, `runtime/rexgpu-xenos.dll` e dependências declaradas em `runtime/SHA256SUMS.txt`. O manifesto verifica integridade de cópia; não é uma assinatura. Para testar DLLs do SDK modificadas, recalcule o manifesto local, preservando nomes e o formato `sha256`, dois espaços, nome do arquivo.
 
-## ExecutÃ¡vel nativo
+## Executável nativo
 
-Requisitos de compilaÃ§Ã£o: CMake, Ninja, Clang/LLVM com suporte MSVC, Windows SDK, bibliotecas do MSVC e o SDK ReXGlue. Essas ferramentas nÃ£o acompanham o launcher e precisam ser obtidas de suas fontes oficiais.
+Requisitos de compilação: CMake, Ninja, Clang/LLVM com suporte MSVC, Windows SDK, bibliotecas do MSVC e o SDK ReXGlue. Essas ferramentas não acompanham o launcher e precisam ser obtidas de suas fontes oficiais.
 
-1. Obtenha o SDK ReXGlue no commit acima, com seus submÃ³dulos nas revisÃµes registradas por esse commit.
-2. Aplique `sdk-patches/rex-sdk-local.diff` na raiz do SDK. O script tools/apply_sdk_patch.ps1 ajusta os includes de diagnÃ³stico do diff para a pasta do checkout atual.
-3. Compile e instale o SDK conforme sua documentaÃ§Ã£o, usando configuraÃ§Ã£o Release e suporte a Direct3D 12. As modificaÃ§Ãµes do SDK nÃ£o incluem recursos do jogo.
-4. Importe sua ISO com o launcher ou disponibilize seus recursos locais em `originals/`. O XEX precisa ser da ediÃ§Ã£o suportada.
+1. Obtenha o SDK ReXGlue no commit acima, com seus submódulos nas revisões registradas por esse commit.
+2. Aplique `sdk-patches/rex-sdk-local.diff` na raiz do SDK. O script tools/apply_sdk_patch.ps1 ajusta os includes de diagnóstico do diff para a pasta do checkout atual.
+3. Compile e instale o SDK conforme sua documentação, usando configuração Release e suporte a Direct3D 12. As modificações do SDK não incluem recursos do jogo.
+4. Importe sua ISO com o launcher ou disponibilize seus recursos locais em `originals/`. O XEX precisa ser da edição suportada.
 5. Execute `rexglue codegen native-rex/ben10_manifest.toml`. Isso cria `native-rex/generated/default` localmente.
-6. Configure o projeto `native-rex` com CMake, indicando a instalaÃ§Ã£o do SDK em `CMAKE_PREFIX_PATH`, e compile em Release. A integraÃ§Ã£o gerada deve corresponder ao codegen do mesmo SDK.
+6. Configure o projeto `native-rex` com CMake, indicando a instalação do SDK em `CMAKE_PREFIX_PATH`, e compile em Release. A integração gerada deve corresponder ao codegen do mesmo SDK.
 
-### SequÃªncia de referÃªncia
+### Sequência de referência
 
-Execute num terminal de desenvolvimento x64 com Git, CMake, Ninja, LLVM/Clang para ABI MSVC e os includes/libs do Windows SDK disponÃ­veis. Exemplo de checkout em uma pasta de sua escolha; estes comandos descrevem o fluxo do SDK, mas **nÃ£o foram executados de ponta a ponta numa mÃ¡quina limpa** nesta release:
+Execute num terminal de desenvolvimento x64 com Git, CMake, Ninja, LLVM/Clang para ABI MSVC e os includes/libs do Windows SDK disponíveis. Exemplo de checkout em uma pasta de sua escolha; estes comandos descrevem o fluxo do SDK, mas **não foram executados de ponta a ponta numa máquina limpa** nesta release:
 
 ```powershell
 $root = (Get-Location).Path
@@ -147,7 +147,7 @@ cmake --build --preset win-amd64-release --parallel 2
 cmake --install out/build/win-amd64 --config Release
 Pop-Location
 
-# Disponibilize os recursos da sua cÃ³pia em originals/ antes do codegen.
+# Disponibilize os recursos da sua cópia em originals/ antes do codegen.
 & "$root/toolchain/rexglue-sdk/bin/rexglue.exe" codegen native-rex/ben10_manifest.toml
 cmake -S native-rex -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release `
   -DCMAKE_CXX_COMPILER=clang-cl "-DCMAKE_PREFIX_PATH=$root/toolchain/rexglue-sdk"
@@ -155,7 +155,7 @@ cmake --build build/native --parallel 2
 ./tools/build_launcher.ps1
 ```
 
-O script de patch usa `git apply --check` antes de alterar o SDK e ajusta os includes de integraÃ§Ã£o para o checkout atual. NÃ£o aplique o patch sobre outra revisÃ£o do SDK sem revisar os conflitos. As configuraÃ§Ãµes e dependÃªncias detalhadas do SDK estÃ£o no seu `CMakePresets.json` e `thirdparty/CMakeLists.txt`, incluÃ­dos no arquivo de fontes correspondente.
+O script de patch usa `git apply --check` antes de alterar o SDK e ajusta os includes de integração para o checkout atual. Não aplique o patch sobre outra revisão do SDK sem revisar os conflitos. As configurações e dependências detalhadas do SDK estão no seu `CMakePresets.json` e `thirdparty/CMakeLists.txt`, incluídos no arquivo de fontes correspondente.
 
 ### Testar o importador
 
@@ -167,25 +167,29 @@ New-Item -ItemType Directory -Force build/launcher | Out-Null
 ./build/launcher/IsoReaderTests.exe "$root/build/launcher/parser-fixtures"
 ```
 
-Esses testes criam somente imagens sintÃ©ticas pequenas no diretÃ³rio fornecido. O teste com a ISO real Ã© separado: `tools/build_iso_import_core.ps1` gera `InspectIso.exe`, que aceita o caminho da ISO para inspecionar a ediÃ§Ã£o. A opÃ§Ã£o `--extract <pasta-nova>` executa uma importaÃ§Ã£o completa sem interface grÃ¡fica. NÃ£o aponte a extraÃ§Ã£o para uma pasta existente ou para seus saves.
+Esses testes criam somente imagens sintéticas pequenas no diretório fornecido. O teste com a ISO real é separado: `tools/build_iso_import_core.ps1` gera `InspectIso.exe`, que aceita o caminho da ISO para inspecionar a edição. A opção `--extract <pasta-nova>` executa uma importação completa sem interface gráfica. Não aponte a extração para uma pasta existente ou para seus saves.
 
-O pacote portÃ¡til fornece `BEN10_PORTABLE_ROOT` para separar `game`, `user`, `cache`, `metadata` e logs da pasta de desenvolvimento. NÃ£o copiar os caminhos absolutos dos scripts privados de benchmark para a configuraÃ§Ã£o de uma distribuiÃ§Ã£o.
+O pacote portátil fornece `BEN10_PORTABLE_ROOT` para separar `game`, `user`, `cache`, `metadata` e logs da pasta de desenvolvimento. Não copiar os caminhos absolutos dos scripts privados de benchmark para a configuração de uma distribuição.
 
-Os scripts histÃ³ricos de compilaÃ§Ã£o do ambiente de desenvolvimento usam caminhos locais e nÃ£o constituem um instalador universal de toolchain. NÃ£o foi verificada uma compilaÃ§Ã£o em mÃ¡quina limpa nesta primeira versÃ£o; o pacote binÃ¡rio e o importador foram testados no ambiente de desenvolvimento.
+Os scripts históricos de compilação do ambiente de desenvolvimento usam caminhos locais e não constituem um instalador universal de toolchain. Não foi verificada uma compilação em máquina limpa nesta primeira versão; o pacote binário e o importador foram testados no ambiente de desenvolvimento.
 
-Nunca envie ao Git arquivos de `originals`, `installation`, fontes PPC geradas, caches ou saves. NÃ£o use um ZIP recursivo da pasta de testes para montar uma release: a distribuiÃ§Ã£o precisa de uma lista explÃ­cita de arquivos permitidos.
+Nunca envie ao Git arquivos de `originals`, `installation`, fontes PPC geradas, caches ou saves. Não use um ZIP recursivo da pasta de testes para montar uma release: a distribuição precisa de uma lista explícita de arquivos permitidos.
 
-Para recompilar a partir do arquivo completo de fontes do SDK, use `CosmicRecomp-test-0.2.1-sdk-source-fix1.zip`. Ele corrige um header de shader prÃ³prio ausente no pacote anterior, sem alterar os bytes do shader ou os binÃ¡rios do jogo. ApÃ³s extrair, execute `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` na raiz do arquivo extraÃ­do. O diff jÃ¡ estÃ¡ aplicado nesse pacote. Os includes foram verificados; uma compilaÃ§Ã£o completa em mÃ¡quina limpa continua sem verificaÃ§Ã£o.
+Para recompilar a partir do arquivo completo de fontes do SDK, use `CosmicRecomp-v0.4.0-alpha.1-corresponding-source.zip`. Ele corrige um header de shader próprio ausente no pacote anterior, sem alterar os bytes do shader ou os binários do jogo. Após extrair, execute `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` na raiz do arquivo extraído. O diff já está aplicado nesse pacote. Os includes foram verificados; uma compilação completa em máquina limpa continua sem verificação.
 
 
-## Public test profile, v0.3.0-test.1
+## Alpha profile, v0.4.0-alpha.1
 
-The public bridge is compiled with `COSMIC_DISABLE_RATH`; the authored program is generated with `authored(disable_rath=True)`. Run `python tools/build_release_bridge.py` to produce `build/rath-disabled-release/CosmicBridge.exe` and its embedded authored-only program. `tools/build_launcher.ps1` builds the standalone frontend and copies that bridge. Do not substitute a private Rath-enabled bridge. The runtime API marker is `3`.
+The public bridge uses `COSMIC_NATIVE_SETTINGS;COSMIC_ALIEN_STREAMS`. Run `python tools/build_release_bridge.py` to produce `build/settings-release/CosmicBridge.exe`; `tools/build_launcher.ps1` copies this matching profile beside the frontend. It embeds only the project's authored VM program, generated with `authored()`. It does not embed original game scripts. `--rath-disabled` reproduces the older exclusion profile and is not the Alpha default.
 
-After codegen, `tools/apply_game_integration.py --generated native-rex/generated/default` applies two idempotent title changes: a 64 MiB DB File Heap request and an RT filter at the original game input wrapper. It contains no generated game function bodies and modifies only locally generated files. No SDK kernel/renderer replacement is involved. The failed animation-lookup experiment is excluded. Run the exclusion-policy and installer tests before packaging. The repository must not receive the generated directory or the embedded user's scripts.
+Use the pinned SDK plus the single `sdk-patches/rex-sdk-local.diff`, including `Ben10ConfigurePresentation` in the SDK SDL window translation unit. In the corresponding-source archive the diff is already applied; do not apply it again. Run `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` to resolve the consumer include placeholders. The presentation addition uses the runtime's SDL instance, adds no data members or virtual methods, and makes no GPU algorithm change. SDK/kernel/GPU source origins and revisions remain in PROVENANCE.json and SOURCES.md.
 
-SDK/GPU DLLs retain the accepted v0.2.1 hashes recorded in PROVENANCE.json. Their complete corresponding source is provided with the release; it includes the pinned SDK and dependencies plus the matching local patch. The v0.3 consumer snapshot replaces its consumer sources without silently changing SDK files. A full clean-machine rebuild remains unverified.
+After local game codegen, `tools/apply_game_integration.py --generated native-rex/generated/default` applies the 64 MiB DB File Heap request and the RT filter in the original input wrapper. These are idempotent title-specific transformations of locally generated code. Generated files must not enter Git or source archives.
+
+The packaged runtime requires `runtime/pc-menu-api.txt` containing `7` and a `runtime/SHA256SUMS.txt` manifest covering every runtime file. Build the game and the SDK together before staging them; never change only the API marker on an older runtime. Build and runtime validation remain separate requirements. A complete clean-machine rebuild has not been verified.
+
+Run `tools/test_all_aliens_patch.py --native-settings`, the importer/menu suites, and the animation-stream parity and save-reset fixtures against disposable copies. Native gameplay, fullscreen and checkpoint tests have a separate scope recorded in VALIDATION.json. Do not publish private input recordings, screenshots containing user data, original assets, generated functions, caches or saves.
 
 ### Português
 
-O perfil público compila a ponte com `COSMIC_DISABLE_RATH`, gera somente o programa próprio e exclui o Rath. Execute `python tools/build_release_bridge.py`; `tools/build_launcher.ps1` usa essa ponte. Depois do codegen, execute apply_game_integration.py para aplicar as duas alterações próprias ao código gerado localmente. O código gerado e os dados do usuário nunca entram no repositório. Os fontes completos do SDK acompanham a versão, com os hashes dos DLLs registrados. A compilação completa em máquina limpa continua sem verificação.
+O perfil Alpha usa `COSMIC_NATIVE_SETTINGS;COSMIC_ALIEN_STREAMS`, API nativa 7 e ponte em `build/settings-release`. O diff único do SDK inclui a extensão SDL de apresentação; o arquivo de fontes já vem com ele aplicado. Execute prepare_sdk_source.py para resolver os includes relocáveis e siga os comandos acima. O SDK continua fornecendo kernel, renderizador e áudio. Código gerado do jogo e dados pessoais não entram no repositório. Os testes locais não comprovam uma compilação completa em máquina limpa.

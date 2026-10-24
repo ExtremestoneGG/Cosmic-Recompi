@@ -1,26 +1,39 @@
 [English](#english) | [Português (Brasil)](#portugues)
 
 <a id="english"></a>
-# v0.3.0-test.1 — launcher, original game menus and Rath exclusion
+# v0.4.0-alpha.1 — settings and transformation fixes
 
-This is an experimental public test requested with Rath disabled. It does not contain a fix for his transformation resource crash. Rath is removed from the All Aliens roster and guarded in all four original transformation input paths, including profiles that already selected him. His menu unlock is kept OFF. Other ordinary forms remain experimental, with pages of 4 + 4 + 2 for a normal four-form preset.
+**Alpha software.** This is an experimental build with limited scene-level validation. It is not a complete or fully verified port.
 
-The standalone launcher uses its own OpenGL-enabled SDL build, exits before gameplay, always requires Play and has corrected menu spacing/highlights. ISO acceptance and preparation are separate steps. The portable EXE extracts only host binaries and notices beside itself; user assets and saves use the shared game-data directory. A desktop shortcut is created after import. Startup failures are logged before the game runs.
+## Added and corrected
 
-Video settings use the original Ben 10 menus, with resolution presets and 30/60/Unlimited limits; the launcher edits the same settings. Native 720p remains the minimum. Resolution changes still require restart. Experimental live-resolution/fullscreen work is not included. Quit to launcher and user-supplied translation tables are included; no translation or background video is bundled.
+- Converted missing resident animation clips into the game's streamed clip format. This addresses the null-resource and invalid-dispatch failures reproduced while selecting extra All Aliens forms, including Rath, Armodrillo and Terraspin. All eleven ordinary forms transformed in the recorded Paris corridor. Original level clips remain unchanged in the merged banks.
+- Kept normal Rath progression and the original cheat instead of forcibly unlocking him in the profile. All Aliens still exposes Rath without changing the saved unlock flag.
+- Reserved RT for page changes while LT is held, preventing RT abilities from obscuring the form wheel. Releasing LT restores the normal input path.
+- Added a single **Show FPS → On/Off** setting for the counter and frame-time graph, both in the game's Video menu and launcher settings.
+- Added live presentation/output size and windowed, borderless and supported exclusive fullscreen choices through the SDK's SDL window. Borderless uses desktop dimensions. This is not internal supersampling or a new renderer.
+- Verified the game-to-launcher process handoff. Existing checkpoint saves are preserved; quitting is not a promise to save an arbitrary point in a mission.
+- Added **Wipe Data** with the game's confirmation dialog. After the process exits, this title's profile data is moved to a recoverable backup before returning to the launcher. Other titles, native video settings and original installations are preserved.
+- Kept the separate Play/Settings/Quit frontend, ISO validation/preparation, startup logs and user-supplied translation-table import. No patch, background video or original game data is bundled.
 
-All Aliens reserves RT for paging while LT is held, restores the original preset when LT is released, and uses the original HUD and selection-sound call. Audible sound, all transformations, mission transitions, death/reload and full-campaign compatibility are not established by the policy/unit tests. An automated extra-form selection also reproduced a missing animation resource associated with Armodrillo; the user reported other forms working. This remains an open issue, not a blanket validation of the roster. Keep All Aliens OFF for the baseline path. No new FPS gain or stable 60 FPS claim is made. The earlier first-boss death failure remains unverified.
+## Next priority: flicker above 30 FPS
 
-Verification records distinguish automated exclusion/installer checks, limited native-game probes and earlier user-confirmed Save/Continue. SDK/GPU binaries retain the v0.2.1 accepted hashes. The consumer adds the native input filter and a 64 MiB DB File Heap budget; corresponding authored integration and SDK sources are supplied. No generated game source, game assets or personal information is shipped.
+Camera/scenery movement can flicker or judder with the frame limit above 30 FPS, including Unlimited. **This Alpha does not fix that issue.** The next investigation runs with the frame limit disabled and targets update/presentation cadence. The default remains 30 FPS. Selecting 60 or Unlimited does not guarantee smooth motion or matching performance.
+
+No new FPS improvement is claimed in this release. Full campaign coverage, extended combat/abilities, the earlier first-boss death failure, and B returning to Press Start remain pending. The Windows 10 compatibility of every GPU/driver combination is not established. Use the startup logs when reporting a launch failure.
+
+The SDK remains pinned to ReXGlue v0.10.0. The runtime adds a narrow SDL presentation extension; the accepted GPU algorithms are unchanged. The single SDK diff, corresponding sources, revisions, tests and limits are documented in BUILD.md, SOURCES.md, PROVENANCE.json and VALIDATION.json. A complete clean-machine rebuild remains unverified.
 
 ---
 <a id="portugues"></a>
-# v0.3.0-test.1 — launcher, menus do jogo e Rath desativado
+# v0.4.0-alpha.1 — configurações e transformações
 
-Versão pública experimental solicitada com o Rath desativado. O crash da transformação dele não está corrigido: ele foi retirado do All Aliens e bloqueado nos quatro caminhos de seleção, inclusive para saves antigos. As páginas ficam em 4 + 4 + 2 para o grupo inicial normal.
+**Versão Alpha:** experimental, com validação em cenas específicas. Não é um port completo ou totalmente verificado.
 
-Inclui ajustes do launcher, Play obrigatório, seleção/validação da ISO separada da preparação, pacote em um executável, atalho após importação, logs iniciais, menus Video do próprio Ben 10, Quit to launcher e importação de tabela de tradução fornecida pelo usuário. O launcher fecha antes do jogo. Nenhum patch ou vídeo de fundo está incluído.
+Corrige recursos de animação ausentes nas transformações extras do All Aliens, incluindo Rath, Armodrillo e Terraspin. As onze formas comuns foram transformadas no corredor de Paris. O desbloqueio normal do Rath e seu cheat são preservados, e RT fica reservado à troca de páginas enquanto LT estiver segurado.
 
-LT + RT troca páginas sem acionar as habilidades por RT enquanto LT estiver segurado. Um teste automático também reproduziu recurso ausente ao selecionar Armodrillo; o usuário relatou os outros funcionando. Essa divergência continua em investigação. All Aliens começa desligado e continua experimental; todas as transformações, mortes e mudanças de fase ainda precisam de testes. Resolução ainda exige reinício; os limites 60/Unlimited não comprovam 60 FPS estáveis. O crash anterior ao morrer no primeiro chefe permanece sem confirmação de correção. Save/Continue já foi confirmado manualmente em teste anterior.
+Inclui **Show FPS** para mostrar/esconder juntos contador e frametime, resolução de saída sem reiniciar, modos de janela/borderless/exclusivo compatíveis e retorno ao launcher. A resolução interna não é aumentada por essas opções de saída. Wipe Data usa confirmação do jogo e guarda backup antes de retornar ao launcher. Sair preserva os checkpoints existentes; não garante salvar um ponto arbitrário da missão.
 
-Os binários do SDK/GPU mantêm os hashes aceitos da versão anterior. O executável do jogo recebe o filtro de entrada e orçamento de 64 MiB para DB File Heap. As origens, alterações próprias, testes e limitações estão documentados. Não há dados do jogo, código gerado do jogo nem saves pessoais no download.
+**Próxima prioridade: o flicker/tremedeira acima de 30 FPS. Este Alpha ainda não o corrige.** A investigação seguinte usa FPS liberado. O padrão continua em 30 FPS; escolher 60 ou Unlimited não garante fluidez ou desempenho correspondente.
+
+Não há ganho novo de FPS anunciado. Campanha completa, habilidades prolongadas, o crash antigo ao morrer no primeiro chefe e B para voltar ao Press Start continuam pendentes. Os logs iniciais ajudam a investigar falhas antes da abertura do jogo. Nenhuma ISO, dado original, fonte gerado do jogo, patch de tradução ou save pessoal é distribuído.

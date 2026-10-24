@@ -39,7 +39,7 @@ class Ben10App : public rex::ReXApp {
   void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {
     // Profiling/replay tools keep their own measurements; ordinary play gets
     // a passive overlay driven by the original game's swap counter.
-    if(!std::getenv("BEN10_REPLAY_INPUT_PATH") && !std::getenv("BEN10_HIDE_PERFORMANCE_OVERLAY"))
+    if((!std::getenv("BEN10_REPLAY_INPUT_PATH") || std::getenv("BEN10_TEST_PERFORMANCE_OVERLAY")) && !std::getenv("BEN10_HIDE_PERFORMANCE_OVERLAY"))
       performance_overlay_=std::make_unique<Ben10PerformanceOverlay>(drawer);
   }
 
@@ -306,6 +306,10 @@ class Ben10App : public rex::ReXApp {
     if(ben10_pc_menu::enabled()) {
       ben10_pc_menu::runtime=runtime();
       ben10_pc_menu::window=window();
+      if(std::getenv("BEN10_PRESENTATION_API")) {
+        auto path=runtime()->user_data_root()/"pc-video.ini";
+        ben10_pc_menu::ApplyPresentation(window(),ben10_pc_menu::DisplayMode(path),ben10_pc_menu::ResolutionIndex(path));
+      }
       auto* input=static_cast<rex::input::InputSystem*>(runtime()->input_system());
       input->SetActiveCallback([this] {
         return !imgui_drawer()->GetIO().WantCaptureMouse;

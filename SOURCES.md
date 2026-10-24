@@ -125,3 +125,11 @@ SHA-256 da cópia local utilizada do downloader: `1791cccca594ff083ce8d3e0a139e6
 ## Recursos do jogo e evidência
 
 Os recursos vêm exclusivamente da ISO fornecida pelo próprio usuário. O SHA-256 suportado do XEX identifica a edição; não é um recurso redistribuído. Os hashes do runtime publicado estão em `PROVENANCE.json` e `runtime/SHA256SUMS.txt`. Testes e limites conhecidos estão em `ARCHITECTURE.md`; resultados do checkpoint inicial não foram generalizados para a campanha inteira.
+
+## Alpha additions maintained by this project
+
+The resident-to-streamed animation converter, owned reset lifecycle, original-menu wrappers and SDL presentation extension are project-authored code. Animation format details were established from local supported-game data and checked with independent C#/Python transformations; no external game's implementation or asset is imported. The conversion source is `launcher/AllAliensPatch.cs` and `tools/merge_alien_streams.py`.
+
+`native-rex/src/sdk_presentation_extension.inc` is maintained here and carried into the SDK through the single diff. It calls the pinned SDL dependency's window/display APIs inside ReXGlue's existing window unit. SDL and ReXGlue license notices and corresponding sources remain included. No new renderer or kernel dependency was introduced.
+
+Português: as conversões de animação, ciclo de reset, extensões de menus e integração SDL foram implementadas neste projeto. Os dados são derivados localmente da cópia do usuário. Nenhum patch de tradução ou recurso de outro jogo é distribuído. As origens, revisões e licenças das dependências continuam registradas acima.

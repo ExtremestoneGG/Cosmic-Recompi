@@ -3,47 +3,51 @@
 <a id="english"></a>
 # Cosmic Recomp
 
-Experimental Windows 10/11 x64 native port of **Ben 10 Ultimate Alien: Cosmic Destruction** (Xbox 360), built on ReXGlue v0.10.0 and Direct3D 12.
+Experimental Windows 10/11 x64 native port of **Ben 10 Ultimate Alien: Cosmic Destruction** (Xbox 360), using ReXGlue v0.10.0 and Direct3D 12.
 
-**Bring your own supported copy.** No ISO, XEX, game assets, generated game code or personal saves are distributed.
+**Alpha software. Camera/scenery flicker above 30 FPS is still present and is the next priority.**
 
-[Download](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases/tag/v0.3.0-test.1) · [Releases](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases) · [User guide](USER_GUIDE.md) · [Build guide](BUILD.md) · [Testing](TESTING.md) · [Sources and credits](SOURCES.md)
+**Bring your own supported copy.** No ISO, XEX, original assets, generated game source or personal saves are distributed.
 
-## Current test release: v0.3.0-test.1
+[Download](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases/tag/v0.4.0-alpha.1) · [User guide](USER_GUIDE.md) · [Build guide](BUILD.md) · [Validation](VALIDATION.json) · [Sources](SOURCES.md)
 
-- One portable executable: select your ISO, validate it, then **Prepare game** with progress reporting. Import uses a precompiled native runtime; it does not compile C++ on the player's PC.
-- Independent Full Emerald-style launcher with **Play, Settings, Quit**, corrected spacing and a fading green selection highlight. Play closes the frontend renderer before gameplay. Automatic direct-start was removed.
-- **Options → Video** uses the original game's menu system: resolution presets and 30/60/Unlimited frame limits. Launcher Settings controls the same saved values. Resolution changes require a restart; live resolution and additional fullscreen modes remain pending.
-- **Quit to launcher**, early startup logs, save-folder information, translation-table import and desktop shortcut creation after import.
-- Experimental **Gameplay → All Aliens**: hold LT and tap RT to change pages. RT is reserved for paging while LT is held. **Rath is disabled in this release**, including saved-slot selection; his transformation crash is not fixed. Four Arms is not included.
+## Alpha v0.4.0-alpha.1
 
-All Aliens starts OFF. Its resource loading and full roster remain experimental. Stable 60 FPS, the full campaign and every transformation have not been validated. The previous first-boss death crash remains unverified. See [release notes](RELEASE_NOTES.md) before testing.
+- One portable EXE: select your ISO, wait for acceptance, then **Prepare game**. Import uses a precompiled native runtime; it does not compile C++ on the player's PC.
+- Separate launcher with **Play, Settings, Quit**. Play closes the frontend before gameplay. There is no automatic-start checkbox.
+- Original in-game **Options → Video** menus: output resolution, 30/60/Unlimited frame limits, display mode and **Show FPS → On/Off**. Show FPS controls both the counter and frame-time graph. Launcher Settings edits the same values.
+- Live output size in windowed mode and supported exclusive fullscreen modes; borderless uses the desktop's size. These are presentation settings, not a claim of increased internal rendering resolution. Native 1280×720 remains the minimum.
+- Quit to launcher, early startup diagnostics, save-folder information, desktop shortcut creation, and user-supplied text-translation import.
+- Repaired missing animation-stream resources for All Aliens. Eleven ordinary forms, including Rath, transformed in the recorded Paris scene. This is scene-level validation, not full campaign coverage.
+- **Gameplay → Wipe Data** asks for confirmation, closes the game, archives this title's profile data, and returns to the launcher. Native video settings remain intact. Backups are in `game-data/save-backups`.
+
+All Aliens starts **OFF**. Hold LT and tap RT to change pages; RT abilities are suppressed while LT is held. Normal Rath progression and the original cheat are preserved. All Aliens makes Rath available without changing the profile unlock. Four Arms is not included.
 
 ## Getting started
 
 1. Put the portable EXE in a writable folder on any drive and run it. It creates `CosmicRecomp` beside itself.
-2. Open Settings, **Select ISO**, wait for acceptance, then **Prepare game**.
-3. Click **Play**. Default is native 1280×720 with an internal 30 FPS limit. Higher limits do not guarantee matching performance or correct animation cadence.
-4. Keep `CosmicRecomp/game-data/user` when updating. Setup logs are in `CosmicRecomp/logs`; game/startup logs are in `CosmicRecomp/game-data/logs`.
+2. In Settings, choose **Select ISO**, wait for validation, then **Prepare game**.
+3. Click **Play**. The default is native 720p with a 30 FPS limit. Higher limits remain experimental.
+4. Preserve `CosmicRecomp/game-data/user` when updating. Setup logs are in `CosmicRecomp/logs`; game/startup logs are in `CosmicRecomp/game-data/logs`.
 
-Save/Continue was manually confirmed in an earlier test. Save files are never supplied with the download. Supported executable identification, patches and recovery instructions are in the [user guide](USER_GUIDE.md).
+Save/Continue was manually confirmed in an earlier test. No saves are supplied. Use a separate folder for a new test release and preserve your existing user folder before migration.
 
-## Technical basis
+## Known limits
 
-ReXGlue supplies the Xbox kernel services, GPU translation and audio; this project does not replace them with a new renderer/kernel. [SOURCES.md](SOURCES.md), [THIRD_PARTY.md](THIRD_PARTY.md), [PROVENANCE.json](PROVENANCE.json) and `LICENSES/` identify upstream sources, pinned revisions, local changes and licenses. Corresponding SDK sources accompany the release. CPU translation, function validation and whole-game compatibility are separate milestones.
+Stable 60 FPS and camera/scenery flicker above 30 FPS remain open. Full campaign compatibility, extended combat/abilities and the earlier first-boss death regression remain unverified. Returning from the main menu to Press Start with B is pending. No new FPS gain is claimed for this settings/stability release. Unsupported exclusive resolutions are rejected and logged.
+
+ReXGlue supplies the kernel, GPU translation and audio. This project does not replace them with a new renderer or kernel. [SOURCES.md](SOURCES.md), [THIRD_PARTY.md](THIRD_PARTY.md), [PROVENANCE.json](PROVENANCE.json) and `LICENSES/` record sources, revisions, changes and licenses. Complete corresponding SDK sources accompany the release. A full clean-machine rebuild remains unverified.
 
 ---
 <a id="portugues"></a>
 # Português (Brasil)
 
-Port nativo experimental para Windows 10/11 x64 de **Ben 10 Ultimate Alien: Cosmic Destruction**, baseado na edição Xbox 360, ReXGlue v0.10.0 e Direct3D 12.
+Port nativo experimental para Windows 10/11 x64 de **Ben 10 Ultimate Alien: Cosmic Destruction**, baseado no ReXGlue v0.10.0 e Direct3D 12. **Você precisa fornecer sua própria cópia compatível.** Nenhum dado original, código gerado do jogo ou save pessoal é distribuído.
 
-**Você precisa fornecer sua própria cópia compatível.** O projeto não distribui ISO, XEX, dados do jogo, código gerado do jogo ou saves pessoais.
+Esta versão corrige recursos de animação ausentes no All Aliens e acrescenta opções nos menus do próprio jogo: resolução de saída, 30/60/Unlimited, modo de tela e **Show FPS**, que mostra ou esconde juntos o contador e o gráfico de frametime. O launcher controla os mesmos valores. A resolução de saída muda sem reiniciar em janela e nos modos exclusivos compatíveis; borderless acompanha o desktop. Isso não significa aumento da resolução interna.
 
-Baixe o executável portátil em [Releases](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases), coloque em uma pasta gravável de qualquer disco e execute. Em Settings, selecione a ISO, aguarde a validação e clique em Prepare game. Depois clique em Play. A interface fecha antes de iniciar o jogo.
+O All Aliens começa desligado. Segure LT e toque RT para trocar páginas; habilidades por RT ficam bloqueadas enquanto LT estiver segurado. As onze formas comuns, incluindo Rath, foram verificadas na cena de Paris. O progresso normal e o cheat do Rath são preservados. Quatro Braços não está incluído.
 
-Esta versão inclui os ajustes do launcher, menu Video do próprio jogo, importação de tabela de tradução, logs iniciais, informações dos saves e All Aliens experimental. **Rath está desativado**, inclusive em slots de saves antigos; o crash dele continua em investigação. O Quatro Braços não está incluído. Segure LT e toque RT para trocar as páginas; enquanto LT estiver segurado, RT não aciona habilidades.
+Wipe Data pede confirmação, fecha o jogo, guarda os dados deste título em `game-data/save-backups` e retorna ao launcher. As configurações nativas de vídeo são preservadas. Mantenha `game-data/user` ao atualizar. Logs ficam em `game-data/logs`.
 
-O padrão é 1280×720 a 30 FPS. 60 FPS e Unlimited são limites disponíveis, sem garantia de desempenho ou cadência correta. A resolução ainda exige reinício. All Aliens começa desligado; todas as transformações e a campanha inteira ainda precisam de validação. O crash anterior ao morrer no primeiro chefe também não foi confirmado como corrigido.
-
-Preserve `CosmicRecomp/game-data/user` ao atualizar. Logs do jogo e de sua inicialização ficam em `CosmicRecomp/game-data/logs`; logs do pacote ficam em `CosmicRecomp/logs`. Consulte o [guia](USER_GUIDE.md), as [notas da versão](RELEASE_NOTES.md) e as [origens dos componentes](SOURCES.md).
+A meta de 60 FPS estáveis e a tremedeira acima de 30 FPS continuam pendentes. A campanha completa e o crash antigo ao morrer no primeiro chefe ainda precisam de verificação. B para voltar ao Press Start também está pendente. Esta atualização não anuncia ganho novo de FPS. Consulte as [notas](RELEASE_NOTES.md), [testes](TESTING.md) e [origens](SOURCES.md).

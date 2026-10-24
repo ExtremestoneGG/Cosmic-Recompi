@@ -125,11 +125,34 @@ namespace CosmicRecompi {
                     0x00000b07,Crc("CosmicToggleAllAliens"),
                     0x00280806,0x00290906,0x002a0a06,0x002b0b06,
                     0x00001e07,0xa6c36cbb,0x04281e20,3);
+#if COSMIC_NATIVE_SETTINGS
+                i.Add(0x00000807,0x0fc54df4,0x00000905,Crc("cosmic_wipe_label"),
+                    0x00000a01,0x00000b07,Crc("CosmicWipeProgress"),0x00000c01,
+                    0x00000207,Crc("Menu_AddOption"),0x05080220,3);
+#endif
                 r.Code=Relocate(r.Code,new Dictionary<int,Injection>{{96,i}});patched++;
             }
             if(patched!=1)throw new InvalidDataException("Gameplay menu missing.");
             foreach(var r in rows)if(r.Id==Crc("pausemenu_enter"))
                 r.Code=Relocate(r.Code,new Dictionary<int,Injection>{{0,Hook("CosmicAlienRestore")}});
+#if COSMIC_NATIVE_SETTINGS
+            int inputPatched=0;
+            foreach(var r in rows)if(r.Id==0x3b77a27e) {
+                // Original Gameplay's pre-input handler consumes A to confirm
+                // the whole settings screen. Let the standard option handler
+                // receive A only on our fourth row. Keep B and every original
+                // checkbox's confirmation/cancel behavior untouched.
+                if(r.Args!=2 || r.Code.Length!=106*4)throw new InvalidDataException("Unexpected Gameplay input handler.");
+                var guard=new Injection();
+                guard.Add(0x001e0017,0x74a09b28,0x00001f03,0x40800000,0x201f1e10);
+                guard.Branch(32,11,true);
+                guard.Add(0x00220117,0xe585980f);
+                guard.Branch(34,11,true);
+                guard.Add(0x00002102,0x00002122);
+                r.Code=Relocate(r.Code,new Dictionary<int,Injection>{{0,guard}});inputPatched++;
+            }
+            if(inputPatched!=1)throw new InvalidDataException("Gameplay input handler missing.");
+#endif
             rows.Add(new Record{Id=Crc("CosmicToggleAllAliens"),Args=1,Code=Bytes(new uint[]{
                 0x00000507,Crc("overlay"),0x00000207,Crc("overlay"),0x00000217,Crc("cosmic_toggle_all_aliens"),0x01050020,1,0x21})});
             return Pack(rows);
@@ -149,12 +172,19 @@ namespace CosmicRecompi {
                     // Mission preload snapshots the four active hotkeys into
                     // another game-owned table. Keep temporary pages out of it.
                     if(r.Id==0xa67003d2){r.Code=Relocate(r.Code,new Dictionary<int,Injection>{{0,Hook("CosmicAlienRestore")}});patched++;}
+#if COSMIC_PRELOAD_ALIENS
+                    if(r.Id==0xaac6a726){r.Code=Relocate(r.Code,new Dictionary<int,Injection>{{87,Hook("CosmicAlienLoad")}});patched++;}
+#endif
                 }
                 using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("CosmicAllAliens.bin")) {
                     if(stream==null)throw new IOException("The launcher is missing its All Aliens program.");
                     using(var memory=new MemoryStream()){stream.CopyTo(memory);rows.AddRange(Parse(memory.ToArray()));}
                 }
+#if COSMIC_PRELOAD_ALIENS
+                if(patched!=4)throw new InvalidDataException("Original form preload lifecycle missing.");
+#else
                 if(patched!=3)throw new InvalidDataException("Original form lifecycle missing.");
+#endif
             }else if(file=="gld_xbx.ds") {
                 foreach(var r in rows)if(r.Id==0x66960347) {
                     if(r.Code.Length!=230*4)throw new InvalidDataException("Unexpected form input handler.");
@@ -202,6 +232,9 @@ namespace CosmicRecompi {
             return Pack(rows);
         }
         public static void Ensure(string game) {
+#if COSMIC_ALIEN_STREAMS
+            AlienAnimationStreams.Ensure(game);
+#endif
             string scripts=Path.Combine(game,"global","scripts");
             string[] names={"globals.ds","gld_xbx.ds","circdisp.ds"};
             string[] hashes={"5bf03a8d2ce2cd8c26176139cd57aea63a15af5e6405a6449e265375ea7103c2",
@@ -224,6 +257,99 @@ namespace CosmicRecompi {
                 // Replace the directory entry: never modify a hard-linked ISO
                 // extraction file in place. Interrupted installs are resumable.
                 File.Replace(temporary,path,null);
+            }
+        }
+    }
+
+    // Private candidate. Existing clips keep priority; only user-owned records
+    // are converted locally. No animation data is embedded in this program.
+    internal static class AlienAnimationStreams {
+        sealed class Entry {public uint Key;public byte[] Data;}
+        static uint U(byte[] b,int p) {
+            if(p<0||p>b.Length-4)throw new InvalidDataException("Truncated animation archive.");
+            return ((uint)b[p]<<24)|((uint)b[p+1]<<16)|((uint)b[p+2]<<8)|b[p+3];
+        }
+        static int I(byte[] b,int p){return checked((int)U(b,p));}
+        static void Put(byte[] b,int p,uint v){b[p]=(byte)(v>>24);b[p+1]=(byte)(v>>16);b[p+2]=(byte)(v>>8);b[p+3]=(byte)v;}
+        static void Word(Stream s,uint v){byte[] b=new byte[4];Put(b,0,v);s.Write(b,0,4);}
+        static List<Entry> Parse(byte[] b) {
+            if(U(b,0)!=0x76617073||U(b,4)!=0x00010003)throw new InvalidDataException("Unsupported animation archive.");
+            int n=I(b,36),at=checked(32+I(b,44)),data=I(b,28);
+            if(n!=I(b,8)||I(b,48)!=12||n>100000||checked(at+n*12)>data||data>b.Length)
+                throw new InvalidDataException("Invalid animation index.");
+            var rows=new List<Entry>();
+            for(int j=0;j<n;j++) {
+                int p=checked(at+j*12),size=I(b,p+4),offset=checked(data+I(b,p+8));
+                if(offset>b.Length-size)throw new InvalidDataException("Invalid animation record.");
+                byte[] value=new byte[size];Buffer.BlockCopy(b,offset,value,0,size);
+                rows.Add(new Entry{Key=U(b,p),Data=value});
+            }
+            return rows;
+        }
+        static byte[] ConvertClip(byte[] clip,List<Entry> channels) {
+            int bones=I(clip,76);
+            if(clip.Length!=checked(216+bones*12))throw new InvalidDataException("Unsupported resident animation layout.");
+            using(var output=new MemoryStream()) {
+                output.Write(clip,0,clip.Length);var offsets=new Dictionary<uint,uint>();
+                for(int position=80;position<clip.Length;position=position==80?216:position+4) {
+                    uint index=U(clip,position);if(index==0xffffffff)continue;
+                    if(index>=channels.Count)throw new InvalidDataException("Invalid animation channel index.");
+                    uint offset;
+                    if(!offsets.TryGetValue(index,out offset)) {
+                        output.Position=output.Length;while((output.Length&3)!=0)output.WriteByte(0);
+                        offset=checked((uint)output.Length);offsets[index]=offset;
+                        byte[] value=channels[(int)index].Data;output.Write(value,0,value.Length);
+                    }
+                    output.Position=position;Word(output,offset);
+                }
+                return output.ToArray();
+            }
+        }
+        internal static byte[] Merge(byte[] original,IEnumerable<byte[]> archives) {
+            if(U(original,20)!=13)throw new InvalidDataException("Expected a streamed animation bank.");
+            var rows=new Dictionary<uint,byte[]>();
+            foreach(var row in Parse(original))if(!rows.ContainsKey(row.Key))rows.Add(row.Key,row.Data);
+            foreach(byte[] archive in archives) {
+                byte[] clips=null,channelBank=null;
+                foreach(var part in Parse(archive)){if(part.Key==13)clips=part.Data;if(part.Key==9)channelBank=part.Data;}
+                if(clips==null)continue;if(channelBank==null)throw new InvalidDataException("Animation channels missing.");
+                var channels=Parse(channelBank);
+                foreach(var row in Parse(clips))if(!rows.ContainsKey(row.Key))rows.Add(row.Key,ConvertClip(row.Data,channels));
+            }
+            int alignment=1<<((original[12]<<8)|original[13]);
+            if(alignment<16||alignment>65536)throw new InvalidDataException("Invalid animation alignment.");
+            int count=rows.Count,buckets=(count+3)/4*4;var keys=new List<uint>(rows.Keys);
+            keys.Sort(delegate(uint a,uint b){int c=(a%(uint)buckets).CompareTo(b%(uint)buckets);return c!=0?c:a.CompareTo(b);});
+            using(var dictionary=new MemoryStream())using(var payload=new MemoryStream()) {
+                byte[] header=new byte[32];Buffer.BlockCopy(original,32,header,0,32);
+                Put(header,0,(uint)buckets);Put(header,4,(uint)count);Put(header,8,32);
+                Put(header,12,(uint)(32+buckets*4));Put(header,16,12);dictionary.Write(header,0,32);
+                int cursor=0;
+                for(uint bucket=0;bucket<buckets;bucket++){while(cursor<count&&keys[cursor]%(uint)buckets<bucket)cursor++;Word(dictionary,(uint)cursor);}
+                foreach(uint key in keys) {
+                    while(payload.Length%alignment!=0)payload.WriteByte(0);
+                    Word(dictionary,key);Word(dictionary,(uint)rows[key].Length);Word(dictionary,(uint)payload.Length);
+                    payload.Write(rows[key],0,rows[key].Length);
+                }
+                int data=checked(((32+(int)dictionary.Length+alignment-1)/alignment)*alignment);
+                byte[] result=new byte[checked(data+(int)payload.Length)];Buffer.BlockCopy(original,0,result,0,32);
+                Put(result,8,(uint)count);Put(result,16,(uint)payload.Length);Put(result,28,(uint)data);
+                Buffer.BlockCopy(dictionary.ToArray(),0,result,32,(int)dictionary.Length);
+                Buffer.BlockCopy(payload.ToArray(),0,result,data,(int)payload.Length);Parse(result);return result;
+            }
+        }
+        internal static void Ensure(string game) {
+            string[] forms={"ad","af","bc","ec","hm","nr","ra","sf","sm","ts","wh"};
+            var archives=new List<byte[]>();foreach(string form in forms)archives.Add(File.ReadAllBytes(Path.Combine(game,"global","g_"+form+".xbx")));
+            foreach(string level in Directory.GetDirectories(game,"l_*"))foreach(string path in Directory.GetFiles(level,"a_*_s.xbx")) {
+                string backup=path+".cosmic-animation-original",temporary=path+".cosmic-animation-new";
+                byte[] original=File.ReadAllBytes(File.Exists(backup)?backup:path),updated=Merge(original,archives);
+                byte[] current=File.ReadAllBytes(path);
+                using(var hash=SHA256.Create())if(Convert.ToBase64String(hash.ComputeHash(current))==Convert.ToBase64String(hash.ComputeHash(updated)))continue;
+                if(File.Exists(backup))using(var hash=SHA256.Create())if(Convert.ToBase64String(hash.ComputeHash(current))!=Convert.ToBase64String(hash.ComputeHash(original)))
+                    throw new IOException("Another patch modified the animation bank: "+Path.GetFileName(path));
+                if(!File.Exists(backup))File.WriteAllBytes(backup,original);
+                File.WriteAllBytes(temporary,updated);File.Replace(temporary,path,null);
             }
         }
     }

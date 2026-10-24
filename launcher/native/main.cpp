@@ -98,7 +98,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
     ImGui_ImplSDL3_InitForOpenGL(window, context); ImGui_ImplOpenGL3_Init("#version 130");
     auto background = launcher_animation_load_gif("assets/launcher/background.gif");
     bool quit = false, settings = std::wstring(args).find(L"--settings") != std::wstring::npos; int frames = 0;
-    int resolution = 0, rate = 0;
+    int resolution = 0, rate = 0, displayMode=0;bool performanceOverlay=true;
     {
         std::ifstream file(installation()/"user/pc-video.ini"); std::string line;
         while(std::getline(file,line)) {
@@ -108,6 +108,10 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
             if(line=="resolution=4k")resolution=3;
             if(line=="frame_limit=60")rate=1;
             if(line=="frame_limit=unlimited")rate=2;
+            if(line=="performance_overlay=off")performanceOverlay=false;
+            if(line=="performance_overlay=on")performanceOverlay=true;
+            if(line=="display_mode=borderless")displayMode=1;
+            if(line=="display_mode=exclusive")displayMode=2;
         }
     }
     Uint64 nextStatusRead=0;
@@ -181,6 +185,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
             ImGui::Combo("##resolution",&resolution,"1280 x 720 (native)\0" "1920 x 1080\0" "2560 x 1440\0" "3840 x 2160\0");
             ImGui::SetNextItemWidth(-1);
             ImGui::Combo("##frame-limit",&rate,"30 FPS\0" "60 FPS\0" "Unlimited\0");
+            ImGui::SetNextItemWidth(-1);
+            ImGui::Combo("##display-mode",&displayMode,"Windowed\0" "Borderless fullscreen\0" "Exclusive fullscreen\0");
+            ImGui::Checkbox("Show FPS and frame time",&performanceOverlay);
             ImGui::TextWrapped("Applies when the game starts. 60 FPS is a limit, not a performance guarantee.");
             if(ImGui::Button("Save video settings")) {
                 const char* resolutions[]={"720p","1080p","1440p","4k"};
@@ -191,6 +198,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR args, int) {
                     auto temporary=path;temporary+=L".launcher.tmp";
                     {std::ofstream file(temporary,std::ios::binary|std::ios::trunc);
                      file<<"resolution="<<resolutions[resolution]<<"\nframe_limit="<<(rate==2?"unlimited":rate==1?"60":"30")<<"\n";
+                     file<<"performance_overlay="<<(performanceOverlay?"on":"off")<<"\n";
+                     file<<"display_mode="<<(displayMode==2?"exclusive":displayMode==1?"borderless":"windowed")<<"\n";
                      file.flush();saved=bool(file);}
                     if(saved)saved=MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;
                 }
