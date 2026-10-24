@@ -308,5 +308,7 @@
     "full_campaign": false,
     "stable_60_FPS": false,
     "flicker_above_30_FPS_fixed": false
-  }
+  },
+  "installer_release": "v0.4.0-alpha.2-installer.1",
+  "installer_source_sha256": "92633035265431db540b7d15bcf351112b8daf4afdf56571d12ee8b04f9af0bf"
 }

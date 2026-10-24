@@ -8,7 +8,7 @@ using System.Text;
 using System.Windows.Forms;
 using System.Threading;
 
-// Asset-free portable distribution. The package contains only the host binaries
+// Asset-free installer. The package contains only the host binaries
 // and notices; original game data is supplied later through the ISO importer.
 internal static class PortableBootstrap {
     static void NoLinks(string path) {
@@ -16,9 +16,22 @@ internal static class PortableBootstrap {
             if((Directory.Exists(p) || File.Exists(p)) && (File.GetAttributes(p)&FileAttributes.ReparsePoint)!=0)
                 throw new IOException("Package folders cannot traverse links or junctions.");
     }
-    [STAThread] static int Main() {return Run(true,true);}
+    [STAThread] static int Main() {
+        Application.EnableVisualStyles();
+        using(var dialog=new FolderBrowserDialog()) {
+            dialog.Description="Choose where to install Cosmic Recomp. Game files, saves and logs will be stored in this folder. Select your existing CosmicRecomp folder to update.";
+            dialog.ShowNewFolderButton=true;
+            dialog.SelectedPath=AppDomain.CurrentDomain.BaseDirectory;
+            if(dialog.ShowDialog()!=DialogResult.OK)return 0;
+            return RunAt(dialog.SelectedPath,true,true);
+        }
+    }
+    // Noninteractive extraction entry point retained for package verification.
     internal static int Run(bool showErrors,bool launch) {
-        string home=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"CosmicRecomp");
+        return RunAt(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"CosmicRecomp"),showErrors,launch);
+    }
+    internal static int RunAt(string selectedFolder,bool showErrors,bool launch) {
+        string home=Path.GetFullPath(selectedFolder);
         string logs=Path.Combine(home,"logs");
         Mutex setup=null;bool acquired=false;
         try {

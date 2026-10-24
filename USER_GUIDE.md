@@ -5,7 +5,7 @@
 
 ## Prepare your copy
 
-Download the portable Windows EXE from Releases. Place it in a writable folder on any drive; it expands its versioned host files under `CosmicRecomp/app` and uses `CosmicRecomp/game-data` for the shared installation. Avoid protected system folders. Do not mix runtime files from different releases.
+Download the portable Windows EXE from Releases. Run it and choose an installation folder on any writable drive. Versioned host files go under app/ and shared game files, saves and logs under game-data/ inside the selected folder. Select the existing installation folder when updating. Avoid protected system folders. Do not mix runtime files from different releases.
 
 Open Settings → Select ISO. Acceptance verifies the supported executable before extraction; it does not prove gameplay compatibility. Then choose Prepare game and wait for completion. The importer reads your ISO without changing it, stages extracted assets and activates only a completed import. It uses an included precompiled runtime, with no local C++ compiler required. Allow approximately 6 GB beyond the ISO and caches. A desktop shortcut is created after import.
 
@@ -58,7 +58,7 @@ After import, Settings → Add translation patch accepts a user-supplied `global
 <a id="portugues"></a>
 # Guia em português
 
-Baixe o EXE portátil, coloque em uma pasta gravável de qualquer disco e execute. Em Settings → Select ISO, selecione sua cópia compatível. Depois da aceitação, clique em Prepare game e aguarde o progresso. O programa importa os dados para um runtime já compilado; não compila C++ no PC do usuário nem altera a ISO. Após preparar, clique em Play. O launcher fecha e o jogo abre em processo separado. Um atalho é criado após a importação.
+Execute o instalador e escolha a pasta de instalação em qualquer disco gravável. Para atualizar, escolha a pasta CosmicRecomp existente. Em Settings → Select ISO, selecione sua cópia compatível. Depois da aceitação, clique em Prepare game e aguarde o progresso. O programa importa os dados para um runtime já compilado; não compila C++ no PC do usuário nem altera a ISO. Após preparar, clique em Play. O launcher fecha e o jogo abre em processo separado. Um atalho é criado após a importação.
 
 As configurações de vídeo ficam tanto no launcher quanto no menu original Options → Video. Há 720p/1080p/1440p/4K e 30/60/Unlimited FPS. O padrão é 30, com limite interno. 60/Unlimited são experimentais e podem apresentar problemas de cadência; a resolução de saída muda sem reiniciar em janela e nos modos exclusivos compatíveis. Borderless acompanha o desktop. Show FPS controla juntos contador e frametime. O contador mostra submissões de quadros do jogo, sem garantir imagens únicas no monitor.
 
