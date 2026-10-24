@@ -277,7 +277,7 @@ class Ben10App : public rex::ReXApp {
   }
 
   void OnPostSetup() override {
-    window()->SetTitle("Cosmic Recomp Alpha 0.4.0-alpha.1");
+    window()->SetTitle("Cosmic Recomp Alpha 0.4.0-alpha.2");
     ben10_fault_probe::Install();
     for(uint32_t address : {0x8210BB88u,0x8229A9F8u,0x8229AA20u,0x8229AA48u,
                             0x8229AA60u,0x8229AA78u,0x8229AA90u,0x8229AAA8u}) {

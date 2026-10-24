@@ -40,6 +40,10 @@ inline LONG CALLBACK Handler(EXCEPTION_POINTERS* exception) {
   reporting=false;return EXCEPTION_CONTINUE_SEARCH;
 }
 inline void Install() {
-  if(std::getenv("BEN10_ALL_ALIENS_FAULT_PROBE"))AddVectoredExceptionHandler(1,Handler);
+  // Keep production crashes actionable too. This observer only reports invalid
+  // guest pointers and always continues the normal exception dispatch; it does
+  // not hide faults or intercept the SDK's protected physical-page tracking.
+  static const auto installed=AddVectoredExceptionHandler(1,Handler);
+  (void)installed;
 }
 }

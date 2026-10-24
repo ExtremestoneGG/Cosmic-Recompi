@@ -1,76 +1,101 @@
 {
-  "release": "v0.4.0-alpha.1",
+  "release": "v0.4.0-alpha.2",
   "status": "Alpha, limited scene-level validation",
-  "original_save_continue": "Previously user-confirmed, separate from reset test",
-  "all_aliens_transformations": {
-    "forms": [
-      "Water Hazard",
-      "NRG",
-      "Swampfire",
-      "AmpFibian",
-      "Big Chill",
-      "Humungousaur",
-      "Spidermonkey",
-      "Echo Echo",
-      "Terraspin",
-      "Armodrillo",
-      "Rath"
-    ],
-    "scene": "Paris corridor checkpoint",
-    "scope": "Earlier eleven-form visual probe; Rath rechecked with current presentation runtime"
-  },
-  "normal_rath_progression_preserved": true,
-  "RT_abilities_suppressed_while_LT_held": true,
-  "show_fps_single_toggle": "Counter and frame-time graph together; ON/OFF callbacks verified",
-  "live_output_resolution": {
-    "same_process": true,
-    "tested_sizes": [
-      [
-        1280,
-        720
-      ],
-      [
-        1920,
-        1080
-      ]
-    ],
-    "internal_supersampling": false
-  },
-  "display_modes": {
-    "exclusive": {
-      "visible_startup_samples": 4,
-      "client": [
-        1280,
-        720
-      ],
-      "caption": false
-    },
-    "borderless": {
-      "visible_startup_samples": 4,
-      "client": [
-        1920,
-        1080
-      ],
-      "caption": false
+  "previous_release_checks": {
+    "release": "v0.4.0-alpha.1",
+    "results": {
+      "release": "v0.4.0-alpha.1",
+      "status": "Alpha, limited scene-level validation",
+      "original_save_continue": "Previously user-confirmed, separate from reset test",
+      "all_aliens_transformations": {
+        "forms": [
+          "Water Hazard",
+          "NRG",
+          "Swampfire",
+          "AmpFibian",
+          "Big Chill",
+          "Humungousaur",
+          "Spidermonkey",
+          "Echo Echo",
+          "Terraspin",
+          "Armodrillo",
+          "Rath"
+        ],
+        "scene": "Paris corridor checkpoint",
+        "scope": "Earlier eleven-form visual probe; Rath rechecked with current presentation runtime"
+      },
+      "normal_rath_progression_preserved": true,
+      "RT_abilities_suppressed_while_LT_held": true,
+      "show_fps_single_toggle": "Counter and frame-time graph together; ON/OFF callbacks verified",
+      "live_output_resolution": {
+        "same_process": true,
+        "tested_sizes": [
+          [
+            1280,
+            720
+          ],
+          [
+            1920,
+            1080
+          ]
+        ],
+        "internal_supersampling": false
+      },
+      "display_modes": {
+        "exclusive": {
+          "visible_startup_samples": 4,
+          "client": [
+            1280,
+            720
+          ],
+          "caption": false
+        },
+        "borderless": {
+          "visible_startup_samples": 4,
+          "client": [
+            1920,
+            1080
+          ],
+          "caption": false
+        }
+      },
+      "quit_to_launcher": true,
+      "wipe_data": {
+        "cancel_then_confirm": true,
+        "six_progress_files_archived_byte_identically": true,
+        "additional_container_headers_preserved": true,
+        "original_saves_untouched": true,
+        "archive_after_process_exit": true,
+        "native_video_settings_preserved": true,
+        "launcher_reopened": true
+      },
+      "sdk_parent_relink_and_window_unit_identical": true,
+      "GPU_algorithm_changes": false,
+      "full_campaign": false,
+      "first_boss_death_regression": false,
+      "stable_60_FPS": false,
+      "flicker_above_30_FPS_fixed": false,
+      "next_priority": "Uncapped camera/scenery flicker and cadence",
+      "new_FPS_gain_claimed": false,
+      "complete_clean_machine_rebuild": false
     }
   },
-  "quit_to_launcher": true,
-  "wipe_data": {
-    "cancel_then_confirm": true,
-    "six_progress_files_archived_byte_identically": true,
-    "additional_container_headers_preserved": true,
-    "original_saves_untouched": true,
-    "archive_after_process_exit": true,
-    "native_video_settings_preserved": true,
-    "launcher_reopened": true
+  "animation_hotfix": {
+    "alpha": true,
+    "animation_timing_original_initializer_cases": 2476,
+    "eight_banks_csharp_python_parity": true,
+    "legacy_upgrade_and_unknown_edit_rejection": true,
+    "forms_visually_reviewed": 11,
+    "rath_movement_jump_attack_input_probe_exit": 0,
+    "big_chill_corridor_replay_exit": 0,
+    "exact_lever_interaction_verified": true,
+    "full_campaign_verified": false,
+    "above_30_fps_flicker_fixed": false,
+    "new_fps_gain_measured": false,
+    "lever_validation": "User manually tested the first lever in phase 1 and reported no crash.",
+    "rath_upgrades_all_aliens_off": "Reported locked; pending investigation"
   },
-  "sdk_parent_relink_and_window_unit_identical": true,
-  "GPU_algorithm_changes": false,
   "full_campaign": false,
-  "first_boss_death_regression": false,
   "stable_60_FPS": false,
-  "flicker_above_30_FPS_fixed": false,
-  "next_priority": "Uncapped camera/scenery flicker and cadence",
-  "new_FPS_gain_claimed": false,
-  "complete_clean_machine_rebuild": false
+  "flicker_above_30_FPS_fixed": false
 }

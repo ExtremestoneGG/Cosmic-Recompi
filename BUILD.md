@@ -44,7 +44,7 @@ The patch helper runs `git apply --check` and relocates diagnostic include paths
 
 ## Building from the complete SDK source archive
 
-Use `CosmicRecomp-v0.4.0-alpha.1-corresponding-source.zip` when rebuilding the published SDK. It supersedes the earlier 0.2.1 SDK source archive, which omitted the project-owned direct-resolve bytecode header and retained an include into a private research directory. The shader bytes and published game binaries are unchanged.
+Use `CosmicRecomp-v0.4.0-alpha.2-corresponding-source.zip` when rebuilding the published SDK. It supersedes the earlier 0.2.1 SDK source archive, which omitted the project-owned direct-resolve bytecode header and retained an include into a private research directory. The SDK shader bytes are unchanged; this Alpha updates the consumer executable and bridge.
 
 After extracting the archive, run this from its root:
 
@@ -175,10 +175,10 @@ Os scripts históricos de compilação do ambiente de desenvolvimento usam camin
 
 Nunca envie ao Git arquivos de `originals`, `installation`, fontes PPC geradas, caches ou saves. Não use um ZIP recursivo da pasta de testes para montar uma release: a distribuição precisa de uma lista explícita de arquivos permitidos.
 
-Para recompilar a partir do arquivo completo de fontes do SDK, use `CosmicRecomp-v0.4.0-alpha.1-corresponding-source.zip`. Ele corrige um header de shader próprio ausente no pacote anterior, sem alterar os bytes do shader ou os binários do jogo. Após extrair, execute `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` na raiz do arquivo extraído. O diff já está aplicado nesse pacote. Os includes foram verificados; uma compilação completa em máquina limpa continua sem verificação.
+Para recompilar a partir do arquivo completo de fontes do SDK, use `CosmicRecomp-v0.4.0-alpha.2-corresponding-source.zip`. Ele corrige um header de shader próprio ausente no pacote anterior, sem alterar os bytes do shader ou os binários do jogo. Após extrair, execute `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` na raiz do arquivo extraído. O diff já está aplicado nesse pacote. Os includes foram verificados; uma compilação completa em máquina limpa continua sem verificação.
 
 
-## Alpha profile, v0.4.0-alpha.1
+## Alpha profile, v0.4.0-alpha.2
 
 The public bridge uses `COSMIC_NATIVE_SETTINGS;COSMIC_ALIEN_STREAMS`. Run `python tools/build_release_bridge.py` to produce `build/settings-release/CosmicBridge.exe`; `tools/build_launcher.ps1` copies this matching profile beside the frontend. It embeds only the project's authored VM program, generated with `authored()`. It does not embed original game scripts. `--rath-disabled` reproduces the older exclusion profile and is not the Alpha default.
 

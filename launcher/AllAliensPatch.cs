@@ -286,11 +286,34 @@ namespace CosmicRecompi {
             }
             return rows;
         }
-        static byte[] ConvertClip(byte[] clip,List<Entry> channels) {
+        static float Float(byte[] b,int p){return BitConverter.ToSingle(BitConverter.GetBytes(U(b,p)),0);}
+        static void PutFloat(byte[] b,int p,float value){Put(b,p,BitConverter.ToUInt32(BitConverter.GetBytes(value),0));}
+        static void TimeRange(byte[] clip,List<Entry> channels,byte[] target) {
+            // Match the game's resident initializer 0x8219ED50. Streamed loading
+            // relocates channels but does not calculate these two fields.
+            float first=10000000.0f,last=-10000000.0f;int bones=I(clip,72);
+            if(bones<0 || checked(216+bones*12)>clip.Length)throw new InvalidDataException("Invalid timed animation bone count.");
+            for(int at=216;at<216+bones*12;at+=4) {
+                uint index=U(clip,at);if(index==0xffffffff)continue;
+                if(index>=channels.Count)throw new InvalidDataException("Invalid timed animation channel.");
+                byte[] ch=channels[(int)index].Data;
+                if(ch.Length<8)throw new InvalidDataException("Truncated animation timing header.");
+                int keys=(ch[4]<<8)|ch[5],stride=ch[1]*4;
+                if(keys==0 || stride==0)throw new InvalidDataException("Invalid animation timing stride.");
+                int a=ch[0]==16?15:8,b=checked(a+(keys-1)*stride);
+                if(b>ch.Length-(ch[0]==16?1:4))throw new InvalidDataException("Animation timing outside channel.");
+                float lo=ch[0]==16?ch[a]*160.0f:Float(ch,a),hi=ch[0]==16?ch[b]*160.0f:Float(ch,b);
+                if(Single.IsNaN(lo)||Single.IsInfinity(lo)||Single.IsNaN(hi)||Single.IsInfinity(hi))throw new InvalidDataException("Non-finite animation time.");
+                first=Math.Min(first,lo);last=Math.Max(last,hi);
+            }
+            PutFloat(target,64,first);PutFloat(target,68,last);
+        }
+        static byte[] ConvertClip(byte[] clip,List<Entry> channels,bool reconstructTiming) {
             int bones=I(clip,76);
             if(clip.Length!=checked(216+bones*12))throw new InvalidDataException("Unsupported resident animation layout.");
             using(var output=new MemoryStream()) {
-                output.Write(clip,0,clip.Length);var offsets=new Dictionary<uint,uint>();
+                byte[] header=(byte[])clip.Clone();if(reconstructTiming)TimeRange(clip,channels,header);
+                output.Write(header,0,header.Length);var offsets=new Dictionary<uint,uint>();
                 for(int position=80;position<clip.Length;position=position==80?216:position+4) {
                     uint index=U(clip,position);if(index==0xffffffff)continue;
                     if(index>=channels.Count)throw new InvalidDataException("Invalid animation channel index.");
@@ -305,7 +328,7 @@ namespace CosmicRecompi {
                 return output.ToArray();
             }
         }
-        internal static byte[] Merge(byte[] original,IEnumerable<byte[]> archives) {
+        internal static byte[] Merge(byte[] original,IEnumerable<byte[]> archives,bool reconstructTiming=true) {
             if(U(original,20)!=13)throw new InvalidDataException("Expected a streamed animation bank.");
             var rows=new Dictionary<uint,byte[]>();
             foreach(var row in Parse(original))if(!rows.ContainsKey(row.Key))rows.Add(row.Key,row.Data);
@@ -314,7 +337,7 @@ namespace CosmicRecompi {
                 foreach(var part in Parse(archive)){if(part.Key==13)clips=part.Data;if(part.Key==9)channelBank=part.Data;}
                 if(clips==null)continue;if(channelBank==null)throw new InvalidDataException("Animation channels missing.");
                 var channels=Parse(channelBank);
-                foreach(var row in Parse(clips))if(!rows.ContainsKey(row.Key))rows.Add(row.Key,ConvertClip(row.Data,channels));
+                foreach(var row in Parse(clips))if(!rows.ContainsKey(row.Key))rows.Add(row.Key,ConvertClip(row.Data,channels,reconstructTiming));
             }
             int alignment=1<<((original[12]<<8)|original[13]);
             if(alignment<16||alignment>65536)throw new InvalidDataException("Invalid animation alignment.");
@@ -341,15 +364,29 @@ namespace CosmicRecompi {
         internal static void Ensure(string game) {
             string[] forms={"ad","af","bc","ec","hm","nr","ra","sf","sm","ts","wh"};
             var archives=new List<byte[]>();foreach(string form in forms)archives.Add(File.ReadAllBytes(Path.Combine(game,"global","g_"+form+".xbx")));
-            foreach(string level in Directory.GetDirectories(game,"l_*"))foreach(string path in Directory.GetFiles(level,"a_*_s.xbx")) {
+            foreach(string level in Directory.GetDirectories(game,"l_*")) {
+            // Camera/mission activation can request an NPC animation through the
+            // same streamed-resource path as an additional player form. Include
+            // this level's own resident clips too; never replace existing clips.
+            var levelArchives=new List<byte[]>(archives);
+            string[] residents=Directory.GetFiles(level,"g_*.xbx");Array.Sort(residents,StringComparer.Ordinal);
+            foreach(string resident in residents)levelArchives.Add(File.ReadAllBytes(resident));
+            foreach(string path in Directory.GetFiles(level,"a_*_s.xbx")) {
                 string backup=path+".cosmic-animation-original",temporary=path+".cosmic-animation-new";
-                byte[] original=File.ReadAllBytes(File.Exists(backup)?backup:path),updated=Merge(original,archives);
+                byte[] original=File.ReadAllBytes(File.Exists(backup)?backup:path),updated=Merge(original,levelArchives);
                 byte[] current=File.ReadAllBytes(path);
                 using(var hash=SHA256.Create())if(Convert.ToBase64String(hash.ComputeHash(current))==Convert.ToBase64String(hash.ComputeHash(updated)))continue;
-                if(File.Exists(backup))using(var hash=SHA256.Create())if(Convert.ToBase64String(hash.ComputeHash(current))!=Convert.ToBase64String(hash.ComputeHash(original)))
-                    throw new IOException("Another patch modified the animation bank: "+Path.GetFileName(path));
+                if(File.Exists(backup))using(var hash=SHA256.Create()) {
+                    string currentHash=Convert.ToBase64String(hash.ComputeHash(current));
+                    // A byte-identical output of our previous converter is a
+                    // supported upgrade, not an arbitrary third-party edit.
+                    if(currentHash!=Convert.ToBase64String(hash.ComputeHash(original)) &&
+                       currentHash!=Convert.ToBase64String(hash.ComputeHash(Merge(original,archives,false))))
+                        throw new IOException("Another patch modified the animation bank: "+Path.GetFileName(path));
+                }
                 if(!File.Exists(backup))File.WriteAllBytes(backup,original);
                 File.WriteAllBytes(temporary,updated);File.Replace(temporary,path,null);
+            }
             }
         }
     }

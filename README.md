@@ -9,9 +9,11 @@ Experimental Windows 10/11 x64 native port of **Ben 10 Ultimate Alien: Cosmic De
 
 **Bring your own supported copy.** No ISO, XEX, original assets, generated game source or personal saves are distributed.
 
-[Download](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases/tag/v0.4.0-alpha.1) · [User guide](USER_GUIDE.md) · [Build guide](BUILD.md) · [Validation](VALIDATION.json) · [Sources](SOURCES.md)
+[Download](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases/tag/v0.4.0-alpha.2) · [User guide](USER_GUIDE.md) · [Build guide](BUILD.md) · [Validation](VALIDATION.json) · [Sources](SOURCES.md)
 
-## Alpha v0.4.0-alpha.1
+Latest update: [animation and lever crash fixes](RELEASE_NOTES.md), including a manual phase-1 lever test. Rath upgrades with All Aliens disabled remain under investigation.
+
+## Alpha v0.4.0-alpha.2
 
 - One portable EXE: select your ISO, wait for acceptance, then **Prepare game**. Import uses a precompiled native runtime; it does not compile C++ on the player's PC.
 - Separate launcher with **Play, Settings, Quit**. Play closes the frontend before gameplay. There is no automatic-start checkbox.

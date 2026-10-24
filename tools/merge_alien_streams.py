@@ -8,12 +8,35 @@ def channel_records(blob):
     return [blob[base+offset:base+offset+size] for _,size,offset in
             (struct.unpack_from('>3I',blob,32+record_at+i*stride) for i in range(n))]
 
-def streamed_clip(clip,channels):
+def animation_time_range(clip,channels):
+    # Original resident initializer 0x8219ED50; streamed loading only relocates
+    # pointers and expects these time bounds to have already been baked.
+    begin,end=10000000.0,-10000000.0
+    count=struct.unpack_from('>I',clip,72)[0]
+    assert 216+count*12<=len(clip)
+    for at in range(216,216+count*12,4):
+        index=struct.unpack_from('>I',clip,at)[0]
+        if index==0xffffffff:continue
+        channel=channels[index]
+        keys=struct.unpack_from('>H',channel,4)[0];stride=channel[1]*4
+        assert keys>0 and stride>0
+        if channel[0]==16:
+            first=channel[15]*160.0;last=channel[15+(keys-1)*stride]*160.0
+        else:
+            first=struct.unpack_from('>f',channel,8)[0]
+            last=struct.unpack_from('>f',channel,8+(keys-1)*stride)[0]
+        import math
+        assert math.isfinite(first) and math.isfinite(last)
+        begin=min(begin,first);end=max(end,last)
+    return begin,end
+
+def streamed_clip(clip,channels,reconstruct_timing=True):
     # Resident clips store indices into section 9, including duplicate keys.
     # Streamed clips store byte offsets to inline channels instead.
     bones=struct.unpack_from('>I',clip,76)[0]
     assert len(clip)==216+bones*12, (len(clip),bones)
     out=bytearray(clip);mapped={}
+    if reconstruct_timing:struct.pack_into('>2f',out,64,*animation_time_range(clip,channels))
     for at in [80]+list(range(216,len(clip),4)):
         index=struct.unpack_from('>I',clip,at)[0]
         if index==0xffffffff:continue
@@ -39,7 +62,7 @@ def entries(blob,allow_duplicates=False):
         if key not in result:result[key]=blob[base+offset:base+offset+size]
     return result
 
-def merge_streams(original,archives):
+def merge_streams(original,archives,reconstruct_timing=True):
     assert struct.unpack_from('>I',original,20)[0]==13
     records=entries(original,True);old=dict(records);added={}
     for name,blob in archives:
@@ -48,8 +71,8 @@ def merge_streams(original,archives):
         assert struct.unpack_from('>I',section,20)[0]==13
         channels=channel_records(sections[9])
         count=0
-        for key,value in entries(section).items():
-            if key not in records:records[key]=streamed_clip(value,channels);count+=1
+        for key,value in entries(section,True).items():
+            if key not in records:records[key]=streamed_clip(value,channels,reconstruct_timing);count+=1
         added[name]=count
     n=len(records);buckets=(n+3)//4*4
     alignment=1<<struct.unpack_from('>H',original,12)[0]
