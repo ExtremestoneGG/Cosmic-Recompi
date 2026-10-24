@@ -21,6 +21,27 @@ Gameplay → All Aliens is OFF by default. Hold LT and tap RT to cycle the origi
 
 Quit to launcher requests exit through the bridge and reopens the frontend. It does not guarantee a new save: use the game's own save/checkpoint first. Save/Continue was manually verified in an earlier test, but full-campaign and every death/reload path are not validated.
 
+## Keyboard and controllers
+
+Controllers are supported natively through the SDK SDL backend, including XInput-compatible controllers. Prompts retain Xbox button names. Contextual actions follow the original game.
+
+| Keyboard | Xbox input / purpose |
+| --- | --- |
+| WASD | Left stick: movement |
+| Arrows | Right stick: camera |
+| Space or semicolon | A: confirm / jump |
+| Backspace or apostrophe | B: back / original B action |
+| L / P | X / Y |
+| Q or I | LT: alien wheel |
+| E or O | RT: abilities; next wheel page while LT held with All Aliens ON |
+| 1 / 3 | LB / RB |
+| F / K | Left / right stick click |
+| Shift + arrows | D-pad |
+| Enter or X | Start / pause |
+| Tab or Z | Back / Select |
+
+With All Aliens ON, hold Q and tap E to cycle pages. Mouse camera is opt-in and disabled by default. Mappings checked against the SDK keyboard driver and launcher configuration; not every contextual keyboard action has been playtested.
+
 ## Saves, logs and updates
 
 For the portable EXE, saves are under `CosmicRecomp/game-data/user`. For a manually staged ZIP, they are under `installation/user` beside the launcher unless an existing installation path was configured. Settings displays the actual save directory and offers Open saves. Preserve the whole user directory when updating; do not copy only one file from a multi-file save.
@@ -42,6 +63,8 @@ Baixe o EXE portátil, coloque em uma pasta gravável de qualquer disco e execut
 As configurações de vídeo ficam tanto no launcher quanto no menu original Options → Video. Há 720p/1080p/1440p/4K e 30/60/Unlimited FPS. O padrão é 30, com limite interno. 60/Unlimited são experimentais e podem apresentar problemas de cadência; a resolução de saída muda sem reiniciar em janela e nos modos exclusivos compatíveis. Borderless acompanha o desktop. Show FPS controla juntos contador e frametime. O contador mostra submissões de quadros do jogo, sem garantir imagens únicas no monitor.
 
 Gameplay → All Aliens começa desligado. Segure LT e toque RT para alternar 4 + 4 + 3 formas. Enquanto LT estiver pressionado, RT não aciona as habilidades. Soltar LT restaura os quatro slots originais. Rath mantém o progresso/cheat normal e também fica disponível no All Aliens. O crash de recurso de animação foi corrigido na cena testada. Quatro Braços não está incluído. As transformações e o ciclo de recursos do All Aliens ainda são experimentais.
+
+Controles são aceitos nativamente via SDL, incluindo XInput. Teclado: WASD move; setas = câmera; Espaço = A; Backspace = B; L/P = X/Y; Q/I = LT; E/O = RT; 1/3 = LB/RB; F/K = clique dos analógicos; Shift + setas = direcional; Enter/X = Start; Tab/Z = Back. Com All Aliens ligado, segure Q e toque E para trocar a página. Mouse não vem ativado. Mapeamento conferido no código/configuração; nem toda ação contextual foi testada.
 
 No pacote portátil, preserve `CosmicRecomp/game-data/user` ao atualizar. Settings mostra a pasta real e permite abri-la. Feche o jogo antes de copiar os saves. Para resetar sem perder a cópia, renomeie a pasta user para user-backup. Quit to launcher não substitui o save/checkpoint do próprio jogo. Wipe Data pede confirmação e arquiva os perfis deste título em save-backups após o jogo fechar; as configurações nativas de vídeo são preservadas.
 

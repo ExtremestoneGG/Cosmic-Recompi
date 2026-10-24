@@ -51,3 +51,5 @@ O All Aliens começa desligado. Segure LT e toque RT para trocar páginas; habil
 Wipe Data pede confirmação, fecha o jogo, guarda os dados deste título em `game-data/save-backups` e retorna ao launcher. As configurações nativas de vídeo são preservadas. Mantenha `game-data/user` ao atualizar. Logs ficam em `game-data/logs`.
 
 A meta de 60 FPS estáveis e a tremedeira acima de 30 FPS continuam pendentes. A campanha completa e o crash antigo ao morrer no primeiro chefe ainda precisam de verificação. B para voltar ao Press Start também está pendente. Esta atualização não anuncia ganho novo de FPS. Consulte as [notas](RELEASE_NOTES.md), [testes](TESTING.md) e [origens](SOURCES.md).
+
+Keyboard mappings and native controller support: [User guide](USER_GUIDE.md#keyboard-and-controllers).
