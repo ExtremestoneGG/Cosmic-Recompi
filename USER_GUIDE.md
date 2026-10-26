@@ -40,7 +40,7 @@ Controllers are supported natively through the SDK SDL backend, including XInput
 | Enter or X | Start / pause |
 | Tab or Z | Back / Select |
 
-With All Aliens ON, hold Q and tap E to cycle pages. Mouse camera is opt-in and disabled by default. Mappings checked against the SDK keyboard driver and launcher configuration; not every contextual keyboard action has been playtested.
+With All Aliens ON, hold Q and tap E to cycle pages. For the five forms with Ultimate variants, press F or click L3 to toggle the matching Ultimate form; pressing it again reverts to the base form. Mouse camera is opt-in and disabled by default. Mappings checked against the SDK keyboard driver and launcher configuration; not every contextual keyboard action has been playtested.
 
 ## Saves, logs and updates
 

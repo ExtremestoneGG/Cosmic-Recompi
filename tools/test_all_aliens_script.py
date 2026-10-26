@@ -12,10 +12,10 @@ from prepare_all_aliens_candidate import (
 class VM:
     def __init__(self,preset):
         self.functions={h:(a,c) for h,a,c in authored()}
-        self.page=-1;self.events=[];self.pending=[];self.globals={}
+        self.page=-1;self.events=[];self.pending=[];self.ultimate_trigger=0;self.globals={}
         self.globals[crc('gFormHotKey')]={i:{crc('formID'):v} for i,v in enumerate(preset,1)}
         self.globals[crc('gFormData')]={i:{crc('characterFile'):'g_'+str(i),
-          0x7fb535f8:'atk_'+str(i),crc('character'):'character_'+str(i)} for i in range(1,12)}
+          0x7fb535f8:'atk_'+str(i),crc('character'):'character_'+str(i)} for i in range(1,33)}
         self.globals[0x0bfbfd2d]='data';self.globals[0x79c61e79]='desc'
         mission={}
         def load(*args):
@@ -27,7 +27,11 @@ class VM:
         self.globals[0x93aca275]={crc('removecharacter'):lambda *args:self.events.append(('remove',args[1]))}
         self.globals[0x2712f51f]={0x5e89deba:lambda *args:self.events.append(('sound',args[1]))}
         self.globals[crc('overlay')]={crc('cosmic_all_aliens_page'):lambda *_:self.page,
-          crc('cosmic_all_aliens_trace'):lambda *_:None}
+          crc('cosmic_all_aliens_trace'):lambda *_:None,
+          crc('cosmic_ultimate_trigger'):lambda *_:self.ultimate_trigger}
+        self.globals[0x98197a65]={crc('switch_form'):lambda *args:self.events.append(('switch_form',args[0]))}
+        self.globals[crc('switch_to_ultimate')]=lambda *args:self.events.append(('switch_to_ultimate',))
+        self.globals[crc('undo_ultimate_form')]=lambda *args:self.events.append(('undo_ultimate_form',))
         for h in self.functions:self.globals[h]=h
     def run(self,name,args=()):
         identity=crc(name) if isinstance(name,str) else name
@@ -95,6 +99,26 @@ for preset in ([4,5,7,10],[11,1,6,9],[1,2,3,4]):
 for preset in ([1,1,2,3],[None,1,2,3],[17,1,2,3]):
     vm=VM(preset);vm.page=0;vm.run('CosmicAlienUpdate')
     assert not vm.events and vm.slots()==preset;cases+=1
+
+pairs=[
+    ('character_humongousaur','character_ulthumong',1,15),
+    ('character_swampfire','character_ultswampfire',2,16),
+    ('character_spidermonkey','character_ultspidermonkey',3,17),
+    ('character_bigchill','character_ultbigchill',4,18),
+    ('character_echo','character_ultecho',5,19),
+]
+for base_name,ultimate_name,base_id,ultimate_id in pairs:
+    vm=VM([base_id,2,3,4])
+    characters=vm.globals[crc('gFormData')]
+    characters[base_id][crc('character')]=crc(base_name)
+    characters[ultimate_id][crc('character')]=crc(ultimate_name)
+    vm.ultimate_trigger=1
+    vm.run('CosmicUltimateUpdate')
+    assert ('switch_to_ultimate',) in vm.events,'L3 must use the original Ultimate routine'
+    vm.globals[crc('gFormHotKey')][1][crc('formID')]=ultimate_id
+    vm.events=[];vm.run('CosmicUltimateUpdate')
+    assert ('undo_ultimate_form',) in vm.events,'L3 must use the original Ultimate revert routine'
+    cases+=1
 
 original=(ROOT/'originals/global/scripts/globals.ds').read_bytes()
 candidate=transform_globals(original)

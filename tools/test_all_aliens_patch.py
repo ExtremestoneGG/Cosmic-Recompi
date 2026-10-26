@@ -20,8 +20,8 @@ subprocess.run([str(csc),'/nologo','/target:exe','/out:'+str(exe),
  str(ROOT/'tests/AllAliensPatchTests.cs')],check=True)
 subprocess.run([str(exe),str(ROOT/'originals/global/scripts'),str(out/'game')],check=True)
 scripts=out/'game/global/scripts'
-assert program.read_bytes()==encode(authored(preload_resources=args.preload_resources))
-assert (scripts/'globals.ds').read_bytes()==transform_globals((ROOT/'originals/global/scripts/globals.ds').read_bytes(),preload_resources=args.preload_resources)
+assert program.read_bytes()==encode(authored())
+assert (scripts/'globals.ds').read_bytes()==transform_globals((ROOT/'originals/global/scripts/globals.ds').read_bytes())
 report={}
 for filename in ['frontend.ds','globals.ds','gld_xbx.ds','circdisp.ds']:
     blob=(scripts/filename).read_bytes();rows=records(blob)
