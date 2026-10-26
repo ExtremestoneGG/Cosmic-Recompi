@@ -49,14 +49,22 @@ class Code:
 BASE='cosmic_alien_base';EXTRA='cosmic_alien_extra';READY='cosmic_alien_ready'
 PENDING='cosmic_alien_pending';PAGE='cosmic_alien_page';ACTIVE='cosmic_alien_active'
 
-def authored(disable_rath=False):
+def authored(disable_rath=False,preload_resources=False):
     result=[]
     def save(name,args,c):c.done();result.append((crc(name),args,c.finish()))
     # Callback follows the original mission loader's completion convention.
     c=Code();c.get(1,PENDING);c.false(1,'end');c.num(2,0)
     c.binary(0x13,3,1,2);c.false(3,'end');c.num(2,1)
     c.binary(0x0b,1,1,2);c.put(1,PENDING);c.num(2,0)
-    c.binary(0x10,3,1,2);c.false(3,'end');c.boolean(1,True);c.put(1,READY)
+    c.binary(0x10,3,1,2);c.false(3,'notify_mission' if preload_resources else 'end');c.boolean(1,True);c.put(1,READY)
+    if preload_resources:
+        c.label('notify_mission')
+        c.call(0x27d93546,[0])
+        # Keep only one extra form's data/descriptor pair in flight.
+        c.get(1,PENDING);c.num(2,0);c.binary(0x13,3,1,2);c.false(3,'end')
+        c.get(2,'cosmic_alien_pair_pending');c.num(3,1);c.binary(0x0b,2,2,3)
+        c.put(2,'cosmic_alien_pair_pending');c.num(3,0);c.binary(0x10,3,2,3)
+        c.false(3,'end');c.call('CosmicAlienNext')
     c.label('end');save('CosmicAlienLoaded',1,c)
 
     c=Code();c.get(0,BASE);c.false(0,'end');c.get(1,'gFormHotKey')
@@ -64,7 +72,14 @@ def authored(disable_rath=False):
         c.num(2,i);c.index(3,0,2);c.index(4,1,2);c.fieldput(4,'formID',3)
     c.num(1,0);c.put(1,PAGE);c.label('end');save('CosmicAlienRestore',0,c)
 
-    c=Code();c.get(0,'gFormHotKey');c.false(0,'end')
+    c=Code()
+    if preload_resources:
+        c.native('cosmic_all_aliens_enabled',15);c.num(14,1)
+        c.binary(0x10,14,15,14);c.false(14,'end')
+        c.get(13,ACTIVE);c.false(13,'start');c.jump('end');c.label('start')
+        c.get(16,0x1729d192);c.false(16,'end');c.num(17,0)
+        c.binary(0x13,17,16,17);c.false(17,'end')
+    c.get(0,'gFormHotKey');c.false(0,'end')
     if disable_rath:
         c.call(0xe1003dc4,result=12);c.field(12,12,'Rath')
     # Refuse an incomplete/duplicate preset rather than guessing its semantics.
@@ -83,7 +98,12 @@ def authored(disable_rath=False):
         for i in range(4):c.binary(0x11,2,1,4+i);c.false(2,'skip'+str(identity))
         c.store(0,8,1);c.num(2,1);c.binary(0x0a,8,8,2);c.label('skip'+str(identity))
     c.num(1,12 if disable_rath else 14);c.put(1,PENDING);c.boolean(1,False);c.put(1,READY)
+    if preload_resources:
+        c.get(1,PENDING);c.binary(0x0a,16,16,1);c.put(16,0x1729d192)
     c.boolean(1,True);c.put(1,ACTIVE);c.num(1,0);c.put(1,PAGE)
+    if preload_resources:
+        c.num(1,1);c.put(1,'cosmic_alien_next');c.call('CosmicAlienNext')
+        c.jump('end')
     c.get(1,0xf3d407b1);c.method(1,'getcurrentmission',[1],2)
     c.get(3,EXTRA);c.get(4,'gFormData');c.get(5,'CosmicAlienLoaded')
     for i in range(1,7 if disable_rath else 8):
@@ -93,6 +113,19 @@ def authored(disable_rath=False):
         c.get(9,0x79c61e79);c.field(10,8,0x7fb535f8)
         c.method(2,0x1a7328ab,[2,9,10,5])
     c.label('end');save('CosmicAlienLoad',0,c)
+
+    if preload_resources:
+        c=Code();c.get(6,'cosmic_alien_next');c.num(1,8)
+        c.binary(0x12,2,6,1);c.false(2,'end')
+        c.num(1,1);c.binary(0x0a,1,6,1);c.put(1,'cosmic_alien_next')
+        c.num(1,2);c.put(1,'cosmic_alien_pair_pending')
+        c.get(1,0xf3d407b1);c.method(1,'getcurrentmission',[1],2)
+        c.get(3,EXTRA);c.index(7,3,6);c.get(4,'gFormData');c.index(8,4,7)
+        c.get(5,'CosmicAlienLoaded');c.get(9,0x0bfbfd2d);c.field(10,8,'characterFile')
+        c.method(2,0xbc35779c,[2,9,10,5])
+        c.get(9,0x79c61e79);c.field(10,8,0x7fb535f8)
+        c.method(2,0x1a7328ab,[2,9,10,5])
+        c.label('end');save('CosmicAlienNext',0,c)
 
     c=Code();c.get(0,ACTIVE);c.false(0,'end');c.call('CosmicAlienRestore')
     c.get(1,0xf3d407b1);c.method(1,'getcurrentmission',[1],2)
@@ -112,7 +145,9 @@ def authored(disable_rath=False):
     c.num(1,0);c.binary(0x12,2,0,1);c.false(2,'enabled')
     c.get(1,BASE);c.false(1,'end');c.call('CosmicAlienRestore');c.jump('end')
     c.label('enabled');c.get(1,ACTIVE);c.false(1,'load');c.jump('ready')
-    c.label('load');c.call('CosmicAlienLoad');c.jump('end')
+    c.label('load')
+    if not preload_resources:c.call('CosmicAlienLoad')
+    c.jump('end')
     c.label('ready');c.get(1,READY);c.false(1,'end');c.get(1,PAGE)
     c.binary(0x11,2,0,1);c.false(2,'end');c.put(0,PAGE)
     c.num(1,0);c.binary(0x10,2,0,1);c.false(2,'extras')
@@ -161,14 +196,15 @@ def encode(rows):
 
 def hook(name):return [0x00001b07,crc(name),0x00281b20,3]
 
-def transform_globals(blob):
+def transform_globals(blob,preload_resources=False):
     rows=[]
     for h,a,c in records(blob):
         if h==crc('switch_form_update'):c=relocate(c,{34:hook('CosmicAlienUpdate')})
         if h==crc('destroy_form_switching'):c=relocate(c,{0:hook('CosmicAlienUnload')})
         if h==0xa67003d2:c=relocate(c,{0:hook('CosmicAlienRestore')})
+        if preload_resources and h==0xaac6a726:c=relocate(c,{87:hook('CosmicAlienLoad')})
         rows.append((h,a,c))
-    return encode(rows+authored())
+    return encode(rows+authored(preload_resources=preload_resources))
 
 def main():
     source=ROOT/'originals/global/scripts';out=ROOT/'build/diagnostics/all-aliens-script-20261023'

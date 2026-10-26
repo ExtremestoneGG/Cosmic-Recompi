@@ -119,6 +119,11 @@ namespace CosmicRecompi {
             if (returnToLauncherEvent != null)
                 start.EnvironmentVariables["BEN10_RETURN_TO_LAUNCHER_EVENT"] = returnToLauncherEvent;
             start.EnvironmentVariables["BEN10_GRAPHICS_BACKEND"] = "d3d12";
+#if COSMIC_HERO_TIME
+            // Register the reviewed API; the user's Hero Time option remains
+            // OFF unless explicitly enabled in the original Extras menu.
+            start.EnvironmentVariables["BEN10_HERO_TIME_DIAGNOSTIC"] = "1";
+#endif
             start.EnvironmentVariables["BEN10_RENDER_TARGET_PATH"] = "rtv";
             start.EnvironmentVariables["BEN10_RESOLUTION"] = resolution;
             start.EnvironmentVariables["BEN10_WINDOW_MODE"] = fullscreen=="true"?"borderless":"windowed";

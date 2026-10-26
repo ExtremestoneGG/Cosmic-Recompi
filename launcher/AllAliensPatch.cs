@@ -118,13 +118,16 @@ namespace CosmicRecompi {
             var rows=Parse(original);int patched=0;
             foreach(var r in rows)if(r.Id==Crc("GameplayMenu_Enter")) {
                 if(r.Code.Length!=241*4)throw new InvalidDataException("Unexpected Gameplay menu.");
-                var i=new Injection();i.Add(
+                var i=new Injection();
+#if !COSMIC_HERO_TIME
+                i.Add(
                     0x00000807,0x0fc54df4,0x00000905,Crc("cosmic_all_aliens_label"),
                     0x00001d07,Crc("overlay"),0x00281d06,0x001e1d17,Crc("cosmic_all_aliens_enabled"),0x01281e20,1,
                     0x00000203,0x3f800000,0x0a020110,
                     0x00000b07,Crc("CosmicToggleAllAliens"),
                     0x00280806,0x00290906,0x002a0a06,0x002b0b06,
                     0x00001e07,0xa6c36cbb,0x04281e20,3);
+#endif
 #if COSMIC_NATIVE_SETTINGS
                 i.Add(0x00000807,0x0fc54df4,0x00000905,Crc("cosmic_wipe_label"),
                     0x00000a01,0x00000b07,Crc("CosmicWipeProgress"),0x00000c01,
@@ -144,7 +147,13 @@ namespace CosmicRecompi {
                 // checkbox's confirmation/cancel behavior untouched.
                 if(r.Args!=2 || r.Code.Length!=106*4)throw new InvalidDataException("Unexpected Gameplay input handler.");
                 var guard=new Injection();
-                guard.Add(0x001e0017,0x74a09b28,0x00001f03,0x40800000,0x201f1e10);
+                guard.Add(0x001e0017,0x74a09b28,0x00001f03,
+#if COSMIC_HERO_TIME
+                    0x40400000,
+#else
+                    0x40800000,
+#endif
+                    0x201f1e10);
                 guard.Branch(32,11,true);
                 guard.Add(0x00220117,0xe585980f);
                 guard.Branch(34,11,true);
@@ -164,6 +173,24 @@ namespace CosmicRecompi {
             }
         }
         public static byte[] Transform(string file,byte[] original) {
+#if COSMIC_HERO_TIME
+            // Private candidate only. Compose at original VM boundaries before
+            // the independently verified All Aliens relocation.
+            if(file=="globals.ds") {
+                var heroRows=Parse(original);int heroHooks=0;
+                foreach(var row in heroRows) {
+                    if(row.Id==Crc("switch_form_update")){row.Code=Relocate(row.Code,new Dictionary<int,Injection>{{34,Hook("CosmicHeroUpdate")}});heroHooks++;}
+                    if(row.Id==Crc("destroy_form_switching")){row.Code=Relocate(row.Code,new Dictionary<int,Injection>{{0,Hook("CosmicHeroUnload")}});heroHooks++;}
+                    if(row.Id==0xaac6a726){row.Code=Relocate(row.Code,new Dictionary<int,Injection>{{87,Hook("CosmicHeroLoad")}});heroHooks++;}
+                }
+                if(heroHooks!=3)throw new InvalidDataException("Original Hero Time lifecycle missing.");
+                using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("CosmicHeroTime.bin")) {
+                    if(stream==null)throw new IOException("Private Hero Time program missing.");
+                    using(var memory=new MemoryStream()){stream.CopyTo(memory);heroRows.AddRange(Parse(memory.ToArray()));}
+                }
+                original=Pack(heroRows);
+            }
+#endif
             var rows=Parse(original);int patched=0;
             if(file=="globals.ds") {
                 foreach(var r in rows) {
@@ -203,6 +230,20 @@ namespace CosmicRecompi {
                     r.Code=Relocate(r.Code,hooks);patched++;
                 }
                 if(patched!=1)throw new InvalidDataException("Original form input missing.");
+#if COSMIC_HERO_TIME
+                foreach(var row in rows)if(row.Id==0x66960347) {
+                    int tail=-1;
+                    foreach(int token in Tokens(row.Code))if(Read(row.Code,token*4)==0x00030017 && Read(row.Code,token*4+4)==0xa95fe03f) {
+                        if(tail!=-1)throw new InvalidDataException("Ambiguous form input tail.");tail=token;
+                    }
+                    if(tail<0)throw new InvalidDataException("Original input history update missing.");
+                    var guard=new Injection();guard.Add(0x00001b07,Crc("cosmic_hero_phase"));
+                    guard.Branch(27,7,true); // nil: ordinary game behavior
+                    guard.Add(0x00001c03,0,0x1d1c1b10);
+                    guard.Branch(29,tail); // owned cycle: preserve input history only
+                    row.Code=Relocate(row.Code,new Dictionary<int,Injection>{{0,guard}});
+                }
+#endif
             }else if(file=="circdisp.ds") {
                 byte[] blank=null;
                 foreach(var r in rows)if(r.Id==0x8f436ad3) {
@@ -369,15 +410,19 @@ namespace CosmicRecompi {
             // lookup while All Aliens has replaced the current loadout.
             foreach(string form in new[]{"ubc","uec","uhm","usf","usm"})
                 archives.Add(File.ReadAllBytes(Path.Combine(game,"global","g_"+form+".xbx")));
+            var ultimateArchives=new List<byte[]>(archives);
+            // Common player transitions live outside the g_* character banks.
+            archives.Add(File.ReadAllBytes(Path.Combine(game,"global","a_plyr.xbx")));
             foreach(string level in Directory.GetDirectories(game,"l_*")) {
             // Camera/mission activation can request an NPC animation through the
             // same streamed-resource path as an additional player form. Include
             // this level's own resident clips too; never replace existing clips.
             var levelArchives=new List<byte[]>(archives);
             var previousLevelArchives=new List<byte[]>(ordinaryArchives);
+            var previousUltimateLevelArchives=new List<byte[]>(ultimateArchives);
             string[] residents=Directory.GetFiles(level,"g_*.xbx");Array.Sort(residents,StringComparer.Ordinal);
             foreach(string resident in residents) {
-                byte[] bytes=File.ReadAllBytes(resident);levelArchives.Add(bytes);previousLevelArchives.Add(bytes);
+                byte[] bytes=File.ReadAllBytes(resident);levelArchives.Add(bytes);previousLevelArchives.Add(bytes);previousUltimateLevelArchives.Add(bytes);
             }
             foreach(string path in Directory.GetFiles(level,"a_*_s.xbx")) {
                 string backup=path+".cosmic-animation-original",temporary=path+".cosmic-animation-new";
@@ -390,7 +435,8 @@ namespace CosmicRecompi {
                     // supported upgrade, not an arbitrary third-party edit.
                     if(currentHash!=Convert.ToBase64String(hash.ComputeHash(original)) &&
                        currentHash!=Convert.ToBase64String(hash.ComputeHash(Merge(original,ordinaryArchives,false))) &&
-                       currentHash!=Convert.ToBase64String(hash.ComputeHash(Merge(original,previousLevelArchives))))
+                       currentHash!=Convert.ToBase64String(hash.ComputeHash(Merge(original,previousLevelArchives))) &&
+                       currentHash!=Convert.ToBase64String(hash.ComputeHash(Merge(original,previousUltimateLevelArchives))))
                         throw new IOException("Another patch modified the animation bank: "+Path.GetFileName(path));
                 }
                 if(!File.Exists(backup))File.WriteAllBytes(backup,original);

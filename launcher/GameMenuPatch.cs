@@ -229,8 +229,59 @@ namespace CosmicRecompi {
             }
         }
         public static byte[] Frontend(byte[] original) {
-            return AllAliensPatch.Frontend(RathFrontend(original));
+            byte[] menus=AllAliensPatch.Frontend(RathFrontend(original));
+#if COSMIC_HERO_TIME
+            return HeroTimeFrontend(original,menus);
+#else
+            return menus;
+#endif
         }
+#if COSMIC_HERO_TIME
+        static byte[] HeroTimeFrontend(byte[] original,byte[] menus) {
+            byte[] template=null;int cursor=8;
+            for(int i=0;i<Read(original,4);i++) {
+                int bytes=checked((int)Read(original,cursor+8)*4);
+                if(Read(original,cursor)==0xb4db5294){template=new byte[bytes];Buffer.BlockCopy(original,cursor+12,template,0,bytes);}
+                cursor+=12+bytes;
+            }
+            if(template==null)throw new InvalidDataException("Original Extras menu template missing.");
+            using(var output=new MemoryStream()) {
+                Append(output,0x1badbabe);Append(output,Read(menus,4)+3);cursor=8;int renamed=0;
+                for(int i=0;i<Read(menus,4);i++) {
+                    int bytes=checked((int)Read(menus,cursor+8)*4);
+                    uint identity=Read(menus,cursor);
+                    if(identity==Crc("GameplayMenu_Enter")){identity=Crc("CosmicStandardGameplay");renamed++;}
+                    Append(output,identity);output.Write(menus,cursor+4,8+bytes);cursor+=12+bytes;
+                }
+                if(renamed!=1)throw new InvalidDataException("Original Gameplay entry missing.");
+                Function(output,"GameplayMenu_Enter",1,NativeMenu(template,"cosmic_gameplay_root","cosmic_gameplay_label",new string[][] {
+                    new string[]{"cosmic_standard_label","STANDARD","CosmicStandardGameplay"},
+                    new string[]{"cosmic_extras_label","EXTRAS","CosmicGameplayExtras"}}));
+                byte[] empty=NativeMenu(template,"cosmic_extras_menu","cosmic_extras_label",new string[0][]);
+                using(var extras=new MemoryStream()) {
+                    extras.Write(empty,0,37*4);
+                    foreach(string[] row in new string[][] {
+                        new string[]{"cosmic_all_aliens_label","cosmic_all_aliens_enabled","CosmicToggleAllAliens"},
+                        new string[]{"cosmic_hero_label","cosmic_hero_enabled","CosmicToggleHeroTime"}}) {
+                        foreach(uint word in new uint[]{
+                            0x00000807,Crc("cosmic_extras_menu"),0x00000905,Crc(row[0]),
+                            0x00001d07,Crc("overlay"),0x00281d06,0x001e1d17,Crc(row[1]),0x01281e20,1,
+                            0x00000203,0x3f800000,0x0a020110,0x00000b07,Crc(row[2]),
+                            0x00280806,0x00290906,0x002a0a06,0x002b0b06,
+                            0x00001e07,0xa6c36cbb,0x04281e20,3})Append(extras,word);
+                    }
+                    extras.Write(empty,37*4,empty.Length-37*4);
+                    Function(output,"CosmicGameplayExtras",1,extras.ToArray());
+                }
+                using(var callback=new MemoryStream()) {
+                    foreach(uint word in new uint[]{0x00000507,Crc("overlay"),0x00000207,Crc("overlay"),
+                        0x00000217,Crc("cosmic_toggle_hero_time"),0x01050020,1,0x21})Append(callback,word);
+                    Function(output,"CosmicToggleHeroTime",1,callback.ToArray());
+                }
+                return output.ToArray();
+            }
+        }
+#endif
         static byte[] RathFrontend(byte[] original) {
             byte[] menus=NativeMenuFrontend(original);
 #if COSMIC_NATIVE_SETTINGS
@@ -303,6 +354,12 @@ namespace CosmicRecompi {
 #endif
                     });
                 rows.Add(new string[]{"cosmic_frame_limit_label","FRAME LIMIT"});
+#if COSMIC_HERO_TIME
+                rows.Add(new string[]{"cosmic_gameplay_label","GAMEPLAY"});
+                rows.Add(new string[]{"cosmic_standard_label","STANDARD"});
+                rows.Add(new string[]{"cosmic_extras_label","EXTRAS"});
+                rows.Add(new string[]{"cosmic_hero_label","HERO TIME (L3)"});
+#endif
 #if COSMIC_NATIVE_SETTINGS
                 rows.Add(new string[]{"cosmic_overlay_label","SHOW FPS"});
                 rows.Add(new string[]{"cosmic_display_label","DISPLAY MODE"});

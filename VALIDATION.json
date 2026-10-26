@@ -103,5 +103,14 @@
     "timing_cases": 2660,
     "eight_banks_parity": true,
     "full_campaign_verified": false
+  },
+  "hero_time": {
+    "manual_attacks_and_meter_confirmed": true,
+    "observed_active_seconds": 60.025,
+    "observed_recharge_seconds": 30.0,
+    "every_ultimate_ability_verified": false,
+    "full_campaign_verified": false,
+    "proportional_recharge_included": false,
+    "wing_transparency_issue_open": true
   }
 }

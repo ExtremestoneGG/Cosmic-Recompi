@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cstring>
 #include <cstdlib>
+#include <cmath>
 #include <Windows.h>
 #include "pc_video_menu.h"
 #include "all_aliens_paging.h"
@@ -25,8 +26,12 @@ inline std::atomic<rex::ui::Window*> window{nullptr};
 inline std::atomic<bool> registered{false};
 inline ben10::AlienPages alien_pages;
 inline bool all_aliens_enabled=false;
+inline bool hero_time_enabled=false;
+inline bool hero_button_armed=false;
+inline bool hero_input_observed=false;
 inline std::mutex video_settings_mutex;
 inline void ReturnVoid(PPCContext& ctx,uint8_t* base);
+inline void SaveVideoKey(const std::filesystem::path& path,const std::string& key,const std::string& value);
 inline void ReturnNumber(PPCContext& ctx,uint8_t* base,float value) {
   // Original sub_820F9090: BE u16 type=2, u16 flags=0, f32 payload.
   // Native script return slots are distinct from the PPC integer return value.
@@ -59,16 +64,56 @@ inline void ToggleAllAliens(PPCContext& ctx,uint8_t* base) {
   auto* host=runtime.load();if(!host)return;
   const bool next=!all_aliens_enabled;
   try {
-    auto path=host->user_data_root()/"pc-gameplay.ini",temporary=path;
-    temporary+=L".tmp";
-    {std::ofstream file(temporary,std::ios::binary|std::ios::trunc);
-      file<<"all_aliens="<<(next?"on":"off")<<"\n";file.flush();
-      if(!file)throw std::runtime_error("Could not write gameplay settings");}
-    if(!MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))
-      throw std::runtime_error("Could not commit gameplay settings");
+    std::lock_guard guard(video_settings_mutex);
+    SaveVideoKey(host->user_data_root()/"pc-gameplay.ini","all_aliens",next?"on":"off");
     all_aliens_enabled=next;
     REXLOG_INFO("Cosmic Gameplay: All Aliens {}",next?"ON":"OFF");
   }catch(const std::exception& e){REXLOG_ERROR("Cosmic Gameplay settings: {}",e.what());}
+}
+inline bool HeroTimeDiagnostic() {
+  const char* value=std::getenv("BEN10_HERO_TIME_DIAGNOSTIC");
+  return value && std::strcmp(value,"1")==0;
+}
+inline void HeroTimeEnabled(PPCContext& ctx,uint8_t* base) {
+  ReturnNumber(ctx,base,hero_time_enabled?1.0f:0.0f);
+}
+inline void ToggleHeroTime(PPCContext& ctx,uint8_t* base) {
+  ReturnVoid(ctx,base);auto* host=runtime.load();if(!host)return;
+  try {
+    std::lock_guard guard(video_settings_mutex);
+    const bool next=!hero_time_enabled;
+    SaveVideoKey(host->user_data_root()/"pc-gameplay.ini","hero_time",next?"on":"off");
+    hero_time_enabled=next;hero_button_armed=false;
+    REXLOG_INFO("Cosmic private Hero Time: {}",next?"ON":"OFF");
+  }catch(const std::exception& error){REXLOG_ERROR("Cosmic Hero Time settings: {}",error.what());}
+}
+inline void HeroTimeButton(PPCContext& ctx,uint8_t* base) {
+  auto* host=runtime.load();rex::input::X_INPUT_STATE state{};
+  auto* input=host?static_cast<rex::input::InputSystem*>(host->input_system()):nullptr;
+  const bool connected=input && input->GetState(0,&state)==0;
+  if(!hero_input_observed) {
+    hero_input_observed=true;
+    REXLOG_INFO("Cosmic private Hero Time: input callback observed; enabled={}, connected={}",hero_time_enabled,connected);
+  }
+  if(!hero_time_enabled || !connected){hero_button_armed=false;ReturnNumber(ctx,base,0);return;}
+  const bool down=(state.gamepad.buttons & 0x0040)!=0; // L3; preserve R3/LT/RT.
+  const bool pressed=down && hero_button_armed;
+  hero_button_armed=!down;
+  if(pressed)REXLOG_INFO("Cosmic private Hero Time: L3 edge observed");
+  ReturnNumber(ctx,base,pressed?1.0f:0.0f);
+}
+inline void HeroTimeDelta(PPCContext& ctx,uint8_t* base) {
+  // Original guest simulation delta. The authored gameplay update must gate
+  // pauses/cutscenes/loading; presentation callbacks must never advance it.
+  uint32_t encoded;std::memcpy(&encoded,base+0x826EBFC0,4);
+  const uint32_t bits=_byteswap_ulong(encoded);float seconds;
+  std::memcpy(&seconds,&bits,4);
+  ReturnNumber(ctx,base,std::isfinite(seconds) && seconds>0?seconds:0.0f);
+}
+template<int Event> void HeroTimeTrace(PPCContext& ctx,uint8_t* base) {
+  ReturnVoid(ctx,base);
+  const char* events[]={"resources ready","Ultimate confirmed","return requested","Ben confirmed; recharge started","recharge complete"};
+  REXLOG_INFO("Cosmic private Hero Time: {}",events[Event]);
 }
 inline bool enabled() {
   if(std::getenv("BEN10_RETURN_TO_LAUNCHER_EVENT"))return true;
@@ -283,10 +328,23 @@ inline void OnFrame() {
       if(!line.empty() && line.back()=='\r')line.pop_back();
       if(line=="all_aliens=on")all_aliens_enabled=true;
       if(line=="all_aliens=off")all_aliens_enabled=false;
+      if(HeroTimeDiagnostic() && line=="hero_time=on")hero_time_enabled=true;
+      if(line=="hero_time=off")hero_time_enabled=false;
     }}
   add("cosmic_all_aliens_page",AllAliensPage);
   add("cosmic_toggle_all_aliens",ToggleAllAliens);
   add("cosmic_all_aliens_enabled",AllAliensEnabled);
   add("cosmic_all_aliens_trace",AllAliensTrace);
+  if(HeroTimeDiagnostic()) {
+    add("cosmic_hero_enabled",HeroTimeEnabled);
+    add("cosmic_toggle_hero_time",ToggleHeroTime);
+    add("cosmic_hero_button",HeroTimeButton);
+    add("cosmic_hero_delta",HeroTimeDelta);
+    add("cosmic_hero_loaded",HeroTimeTrace<0>);
+    add("cosmic_hero_active",HeroTimeTrace<1>);
+    add("cosmic_hero_return",HeroTimeTrace<2>);
+    add("cosmic_hero_recharge",HeroTimeTrace<3>);
+    add("cosmic_hero_ready",HeroTimeTrace<4>);
+  }
 }
 }

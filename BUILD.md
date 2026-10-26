@@ -193,3 +193,7 @@ Run `tools/test_all_aliens_patch.py --native-settings`, the importer/menu suites
 ### Português
 
 O perfil Alpha usa `COSMIC_NATIVE_SETTINGS;COSMIC_ALIEN_STREAMS`, API nativa 7 e ponte em `build/settings-release`. O diff único do SDK inclui a extensão SDL de apresentação; o arquivo de fontes já vem com ele aplicado. Execute prepare_sdk_source.py para resolver os includes relocáveis e siga os comandos acima. O SDK continua fornecendo kernel, renderizador e áudio. Código gerado do jogo e dados pessoais não entram no repositório. Os testes locais não comprovam uma compilação completa em máquina limpa.
+
+## Hero Time Alpha
+
+Build the bridge with `python tools/build_release_bridge.py --hero-time`. This embeds only authored VM extensions and enables the Hero Time API. The gameplay option remains OFF by default. See docs/HERO_TIME.md for validation limits.

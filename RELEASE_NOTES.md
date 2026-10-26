@@ -1,39 +1,70 @@
 [English](#english) | [Português (Brasil)](#portugues)
 
 <a id="english"></a>
-# Urgent hotfix — Ultimate transformation with All Aliens
+# Hero Time — Alpha release notes
 
-Fixes the reported crash when the opening sequence transforms into Ultimate
-Humungousaur with All Aliens enabled. The logged missing resource was
-`97D86BBB`, the original Ultimate Humungousaur `transform_01` animation.
+This Alpha adds **Options → Gameplay → Extras → Hero Time**, disabled by
+default. Original Gameplay settings are available under **Standard**; All Aliens
+is grouped under **Extras**. The menus use the game's original interface.
 
-The animation preparation now includes all five original Ultimate-form archives,
-in addition to ordinary forms and level residents. Existing streamed clips remain
-authoritative. Exact outputs from both previous converters migrate automatically;
-unknown edits are rejected and original backups remain intact.
+First transform into a compatible normal alien, then click the left stick
+(**L3**, **F** with the default keyboard mapping) to request its corresponding
+Ultimate form. Ben cannot transform directly into an Ultimate. Supported pairs
+are Spider Monkey, Humungousaur, Echo Echo, Swampfire and Big Chill. Way Big and
+Ultimate Way Big are excluded. No new character assets are distributed.
 
-The user repeated the failing transformation and confirmed it works. All eight
-banks passed C#/Python parity and native hash lookup checks; 2,660 clip timing
-cases match the original initializer. This does not establish full campaign or
-every Ultimate ability. No performance gain is claimed.
+The special-energy meter shows up to **60 seconds** of Ultimate time. At expiry,
+the game returns to Ben and recharges for **30 seconds** before normal player
+transformations become available again. This release uses the fixed 30-second
+recharge; proportional recharge and an additional green transformation flash
+are planned separately and are not included.
 
-Includes the previous installer folder-selection improvement. Select the same
-installation folder to update and preserve game-data/user. The game executable
-is unchanged and still identifies itself as Alpha 0.4.0-alpha.2; this hotfix updates
-the preparation bridge. Above-30-FPS judder and Rath upgrade availability remain
-open. No game data or saves are distributed. Bring your own supported copy.
+## What was verified
+
+- The user manually confirmed Ultimate attacks and the timer meter worked.
+- Runtime events recorded Ultimate confirmation, return to Ben after 60.025
+  seconds, and completion of a 30.000-second recharge in that test.
+- Authored bytecode tests cover eligible pairs, readiness gates, cycle timing,
+  resource accounting, death/story interruption and energy-meter values.
+- Compiled installer tests cover script composition, branch destinations,
+  repeated installation, unknown-edit rejection and preservation of test saves.
+
+These checks do not certify every Ultimate ability, every mission or the full
+campaign. Pending resource-load cancellation across mission changes requires
+more testing. Back up saves before testing Alpha software.
+
+## Known issues
+
+- Ultimate Big Chill can show an opaque geometric border around its wings.
+- Camera/scenery flicker above 30 FPS remains under investigation.
+- Stable 60 FPS has not been established. No new FPS improvement is claimed.
+- Existing issues, including Rath upgrades with All Aliens disabled, remain
+  outside this change's validation scope.
+
+Bring your own supported game copy. No ISO, XEX, original assets, generated
+game source, private debug room, translation patch or personal saves are bundled.
 
 ---
 <a id="portugues"></a>
-# Hotfix urgente — transformação Suprema com All Aliens
+# Hero Time — notas da versão Alpha
 
-Corrige o crash confirmado na transformação inicial em Humungousaur Supremo com
-All Aliens ligado. Faltava preparar sua animação original transform_01. A correção
-inclui as cinco formas Supremas, preserva os dados originais e aceita a atualização
-dos bancos produzidos pelas versões anteriores. O usuário repetiu a transformação
-e confirmou que funcionou. Oito bancos e 2.660 casos de tempo passaram nos testes.
+Adiciona **Options → Gameplay → Extras → Hero Time**, desligado por padrão.
+As configurações originais ficam em **Standard** e All Aliens fica em **Extras**.
+Os menus usam a interface do próprio jogo.
 
-Mantém o instalador com escolha de pasta. Selecione a instalação existente para
-atualizar e preserve game-data/user. O executável do jogo continua na Alpha 2;
-este hotfix altera a preparação dos recursos. Campanha completa, tremedeira acima
-de 30 FPS e upgrades do Rath continuam sem validação/correção completa.
+Transforme-se primeiro no alien normal compatível e clique no analógico
+esquerdo (**L3**, ou **F** no teclado) para ativar o Supremo correspondente.
+Ben não vira Supremo diretamente. Gigante e Gigante Supremo não participam.
+
+O Supremo dura até **60 segundos**, usando a barra de energia como temporizador.
+Depois, o personagem retorna ao Ben e recarrega por **30 segundos**. A recarga
+proporcional e o brilho verde adicional ficam para outra atualização.
+
+O usuário confirmou os golpes e a barra no teste manual. O log registrou
+60,025 segundos até o retorno e 30 segundos de recarga. Isso não comprova todas
+as habilidades, fases ou a campanha inteira. O contorno nas asas do Friagem
+Supremo é um problema conhecido. A tremedeira acima de 30 FPS continua aberta;
+não há ganho novo de FPS anunciado nem confirmação de 60 FPS estáveis.
+
+É necessário fornecer sua própria cópia compatível. Nenhum dado original,
+save pessoal ou sala privada de debug é distribuído.

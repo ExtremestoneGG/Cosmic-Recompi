@@ -3,7 +3,7 @@ import argparse,hashlib,json,os,subprocess,uuid
 from pathlib import Path
 from prepare_all_aliens_candidate import ROOT,records,decode,transform_globals,crc,encode,authored
 
-parser=argparse.ArgumentParser();parser.add_argument('--preload-resources',action='store_true');parser.add_argument('--native-settings',action='store_true');args=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument('--preload-resources',action='store_true');parser.add_argument('--native-settings',action='store_true');parser.add_argument('--hero-time',action='store_true');args=parser.parse_args()
 out=ROOT/'build/diagnostics/all-aliens-install-20261023'/uuid.uuid4().hex
 out.mkdir(parents=True)
 os.environ.update(TEMP=str(ROOT/'data/temp'),TMP=str(ROOT/'data/temp'))
@@ -12,7 +12,13 @@ exe=out/'test.exe'
 program=ROOT/'launcher/AllAliensProgram.bin'
 if args.preload_resources:
     program=out/'private-program.bin';program.write_bytes(encode(authored(preload_resources=True)))
+hero_arguments=[]
+if args.hero_time:
+    from prepare_hero_time_candidate import authored as hero_authored
+    hero_program=out/'private-hero-program.bin';hero_program.write_bytes(encode(hero_authored()))
+    hero_arguments=['/define:COSMIC_HERO_TIME','/resource:'+str(hero_program)+',CosmicHeroTime.bin']
 subprocess.run([str(csc),'/nologo','/target:exe','/out:'+str(exe),
+ *hero_arguments,
  *(['/define:COSMIC_PRELOAD_ALIENS'] if args.preload_resources else []),
  *(['/define:COSMIC_NATIVE_SETTINGS'] if args.native_settings else []),
  '/resource:'+str(program)+',CosmicAllAliens.bin',
@@ -21,7 +27,11 @@ subprocess.run([str(csc),'/nologo','/target:exe','/out:'+str(exe),
 subprocess.run([str(exe),str(ROOT/'originals/global/scripts'),str(out/'game')],check=True)
 scripts=out/'game/global/scripts'
 assert program.read_bytes()==encode(authored(preload_resources=args.preload_resources))
-assert (scripts/'globals.ds').read_bytes()==transform_globals((ROOT/'originals/global/scripts/globals.ds').read_bytes(),preload_resources=args.preload_resources)
+expected_globals=(ROOT/'originals/global/scripts/globals.ds').read_bytes()
+if args.hero_time:
+    from prepare_hero_time_candidate import transform_globals as hero_transform
+    expected_globals=hero_transform(expected_globals)
+assert (scripts/'globals.ds').read_bytes()==transform_globals(expected_globals,preload_resources=args.preload_resources)
 report={}
 for filename in ['frontend.ds','globals.ds','gld_xbx.ds','circdisp.ds']:
     blob=(scripts/filename).read_bytes();rows=records(blob)
@@ -54,8 +64,22 @@ if args.native_settings:
     # The authored guard bypasses the original Gameplay A interceptor only
     # for the new fourth row; B and the three existing checkbox rows delegate.
     guard,_=decode(new[0x3b77a27e][1]);assert guard[:11]==[
-        0x001e0017,0x74a09b28,0x00001f03,0x40800000,0x201f1e10,
+        0x001e0017,0x74a09b28,0x00001f03,0x40400000 if args.hero_time else 0x40800000,0x201f1e10,
         0x000b201f,0x00220117,0xe585980f,0x000b221f,0x00002102,0x00002122]
     report['native_settings']={'original_rath_progression_unchanged':True,'overlay_native_submenu_present':True}
+if args.hero_time:
+    frontend={h:(a,c) for h,a,c in records((scripts/'frontend.ds').read_bytes())}
+    for name in ('GameplayMenu_Enter','CosmicStandardGameplay','CosmicGameplayExtras','CosmicToggleHeroTime'):
+        assert crc(name) in frontend
+    standard,_=decode(frontend[crc('CosmicStandardGameplay')][1])
+    extras,_=decode(frontend[crc('CosmicGameplayExtras')][1])
+    assert crc('cosmic_all_aliens_label') not in standard
+    assert crc('cosmic_all_aliens_label') in extras and crc('cosmic_hero_label') in extras
+    gld={h:(a,c) for h,a,c in records((scripts/'gld_xbx.ds').read_bytes())}
+    guard,_=decode(gld[0x66960347][1]);assert guard[:6]==[
+        0x00001b07,crc('cosmic_hero_phase'),0x00071b1f,0x00001c03,0,0x1d1c1b10]
+    target=guard[6]>>16;assert guard[target:target+2]==[0x00030017,0xa95fe03f]
+    report['hero_time']={'private_only':True,'gameplay_validated':False,
+                         'extras_separate_from_standard':True,'cycle_input_lock_preserves_history':True}
 (out/'independent-verification.json').write_text(json.dumps(report,indent=2))
 print('Independent C#/Python transform and original branch checks passed:',out)

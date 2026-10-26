@@ -102,7 +102,7 @@
   "runtime_files": [
     {
       "name": "ben10.exe",
-      "sha256": "7b449760d8ea8b984d2cec54980bd77a527b224f3bc516c78382e29d18793108"
+      "sha256": "138d7a165d9004f9c9d91a94a5bd08de51775d2ab551c848ddd8c248c53da042"
     },
     {
       "name": "concrt140.dll",
@@ -173,7 +173,7 @@
     ],
     "game_assets_included": false
   },
-  "release": "v0.4.0-alpha.2-hotfix.1",
+  "release": "v0.4.0-alpha.3",
   "frontend_files": [
     {
       "name": "CosmicRecomp.exe",
@@ -181,7 +181,7 @@
     },
     {
       "name": "CosmicBridge.exe",
-      "sha256": "b34b6cd9626f3279ccaa7b901edbd3be95808542eb436c868a013faf69474aac"
+      "sha256": "d8635d5c9be3a67724e585bde5db2bb744df6d0ecc94a61696cf9ef034ad0554"
     }
   ],
   "correctness_hotfix": {
@@ -318,5 +318,14 @@
     "original_animation": "Ultimate Humungousaur transform_01",
     "timing_cases": 2660,
     "full_campaign_verified": false
+  },
+  "hero_time": {
+    "manual_attacks_and_meter_confirmed": true,
+    "observed_active_seconds": 60.025,
+    "observed_recharge_seconds": 30.0,
+    "every_ultimate_ability_verified": false,
+    "full_campaign_verified": false,
+    "proportional_recharge_included": false,
+    "wing_transparency_issue_open": true
   }
 }
