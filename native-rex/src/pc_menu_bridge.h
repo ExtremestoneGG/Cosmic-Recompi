@@ -25,6 +25,7 @@ inline std::atomic<rex::ui::Window*> window{nullptr};
 inline std::atomic<bool> registered{false};
 inline ben10::AlienPages alien_pages;
 inline bool all_aliens_enabled=false;
+inline bool g_l3_last_state=false;
 inline std::mutex video_settings_mutex;
 inline void ReturnVoid(PPCContext& ctx,uint8_t* base);
 inline void ReturnNumber(PPCContext& ctx,uint8_t* base,float value) {
@@ -49,6 +50,22 @@ inline void AllAliensPage(PPCContext& ctx,uint8_t* base) {
 inline void AllAliensEnabled(PPCContext& ctx,uint8_t* base) {
   if(std::getenv("BEN10_MENU_AUDIT"))REXLOG_INFO("Cosmic menu audit: Gameplay rows created");
   ReturnNumber(ctx,base,all_aliens_enabled?1.0f:0.0f);
+}
+inline void UltimateTrigger(PPCContext& ctx,uint8_t* base) {
+  auto* host=runtime.load();
+  rex::input::X_INPUT_STATE state{};
+  auto* input=host?static_cast<rex::input::InputSystem*>(host->input_system()):nullptr;
+  const bool connected=input && input->GetState(0,&state)==0;
+  if(!connected) {
+    g_l3_last_state=false;
+    ReturnNumber(ctx,base,0.0f);
+    return;
+  }
+  // 0x0040 = XINPUT_GAMEPAD_LEFT_THUMB (Xbox L3 click).
+  const bool l3_down=(state.gamepad.buttons&0x0040)!=0;
+  const bool l3_pressed=l3_down&&!g_l3_last_state;
+  g_l3_last_state=l3_down;
+  ReturnNumber(ctx,base,l3_pressed?1.0f:0.0f);
 }
 inline void AllAliensTrace(PPCContext& ctx,uint8_t* base) {
   ReturnVoid(ctx,base);
@@ -288,5 +305,6 @@ inline void OnFrame() {
   add("cosmic_toggle_all_aliens",ToggleAllAliens);
   add("cosmic_all_aliens_enabled",AllAliensEnabled);
   add("cosmic_all_aliens_trace",AllAliensTrace);
+  add("cosmic_ultimate_trigger",UltimateTrigger);
 }
 }

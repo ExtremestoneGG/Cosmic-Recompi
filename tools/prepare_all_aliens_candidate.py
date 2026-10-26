@@ -21,6 +21,7 @@ class Code:
     def get(self,r,name):self.emit(r<<8|7,crc(name) if isinstance(name,str) else name)
     def put(self,r,name):self.emit(r<<8|8,crc(name) if isinstance(name,str) else name)
     def num(self,r,n):self.emit(r<<8|3,struct.unpack('>I',struct.pack('>f',n))[0])
+    def integer(self,r,n):self.emit(r<<8|5,n)
     def boolean(self,r,b):self.emit(int(b)<<16|r<<8|2)
     def nil(self,r):self.emit(r<<8|1)
     def table(self,r):self.emit(r<<8|0x16)
@@ -124,7 +125,33 @@ def authored(disable_rath=False):
         c.index(7,2,3);c.fieldput(7,'formID',6)
     c.label('sound');c.get(1,0x2712f51f);c.emit(2<<8|5,0xf4b7b9fd)
     c.method(1,0x5e89deba,[1,2]);c.native('cosmic_all_aliens_trace')
+    c.call('CosmicUltimateUpdate')
     c.label('end');save('CosmicAlienUpdate',0,c)
+
+    c=Code();c.native('cosmic_ultimate_trigger',0)
+    c.num(1,0);c.binary(0x13,2,0,1);c.false(2,'end')
+    c.get(1,'gFormHotKey');c.get(2,'gFormData')
+    pairs=[
+        ('character_humongousaur','character_ulthumong'),
+        ('character_swampfire','character_ultswampfire'),
+        ('character_spidermonkey','character_ultspidermonkey'),
+        ('character_bigchill','character_ultbigchill'),
+        ('character_echo','character_ultecho'),
+    ]
+    for slot in range(1,5):
+        next_slot=f'next_slot_{slot}'
+        c.num(3,slot);c.index(4,1,3);c.field(5,4,'formID');c.false(5,next_slot)
+        c.index(6,2,5);c.field(7,6,'character');c.false(7,next_slot)
+        for base_name,ultimate_name in pairs:
+            next_check=f'next_check_{slot}_{base_name}'
+            c.integer(8,crc(base_name));c.binary(0x10,9,7,8);c.false(9,next_check)
+            c.call('switch_to_ultimate');c.jump('end')
+            c.label(next_check)
+            c.integer(8,crc(ultimate_name));c.binary(0x10,9,7,8);c.false(9,f'next_pair_{slot}_{base_name}')
+            c.call('undo_ultimate_form');c.jump('end')
+            c.label(f'next_pair_{slot}_{base_name}')
+        c.label(next_slot)
+    c.label('end');save('CosmicUltimateUpdate',0,c)
     return result
 
 def decode(code):
