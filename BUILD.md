@@ -44,7 +44,7 @@ The patch helper runs `git apply --check` and relocates diagnostic include paths
 
 ## Building from the complete SDK source archive
 
-Use `CosmicRecomp-v0.4.0-alpha.2-corresponding-source.zip` when rebuilding the published SDK. It supersedes the earlier 0.2.1 SDK source archive, which omitted the project-owned direct-resolve bytecode header and retained an include into a private research directory. The SDK shader bytes are unchanged; this Alpha updates the consumer executable and bridge.
+Use `CosmicRecomp-v0.4.0-alpha.4-corresponding-source.zip` when rebuilding the published SDK. It supersedes the earlier 0.2.1 SDK source archive, which omitted the project-owned direct-resolve bytecode header and retained an include into a private research directory. Alpha 4 includes the retained resolve/texture changes, CPU integration recipes and synchronous RAM/GPU metrics. Use its corresponding SDK sources and consumer together.
 
 After extracting the archive, run this from its root:
 
@@ -175,7 +175,7 @@ Os scripts históricos de compilação do ambiente de desenvolvimento usam camin
 
 Nunca envie ao Git arquivos de `originals`, `installation`, fontes PPC geradas, caches ou saves. Não use um ZIP recursivo da pasta de testes para montar uma release: a distribuição precisa de uma lista explícita de arquivos permitidos.
 
-Para recompilar a partir do arquivo completo de fontes do SDK, use `CosmicRecomp-v0.4.0-alpha.2-corresponding-source.zip`. Ele corrige um header de shader próprio ausente no pacote anterior, sem alterar os bytes do shader ou os binários do jogo. Após extrair, execute `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` na raiz do arquivo extraído. O diff já está aplicado nesse pacote. Os includes foram verificados; uma compilação completa em máquina limpa continua sem verificação.
+Para recompilar a partir do arquivo completo de fontes do SDK, use `CosmicRecomp-v0.4.0-alpha.4-corresponding-source.zip`. Ele corrige um header de shader próprio ausente no pacote anterior, sem alterar os bytes do shader ou os binários do jogo. Após extrair, execute `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` na raiz do arquivo extraído. O diff já está aplicado nesse pacote. Os includes foram verificados; uma compilação completa em máquina limpa continua sem verificação.
 
 
 ## Alpha profile, v0.4.0-alpha.2
@@ -197,3 +197,7 @@ O perfil Alpha usa `COSMIC_NATIVE_SETTINGS;COSMIC_ALIEN_STREAMS`, API nativa 7 e
 ## Hero Time Alpha
 
 Build the bridge with `python tools/build_release_bridge.py --hero-time`. This embeds only authored VM extensions and enables the Hero Time API. The gameplay option remains OFF by default. See docs/HERO_TIME.md for validation limits.
+
+## Alpha 4 source correspondence
+
+See docs/ALPHA4.md. Run the authored post-codegen recipe before building. Its callback/storage, file-heap and CPU polling changes are part of this release; copying only the frontend does not reproduce them. The corresponding archive has the SDK patch already applied.

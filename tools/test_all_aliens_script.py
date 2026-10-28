@@ -96,7 +96,11 @@ for preset in ([1,1,2,3],[None,1,2,3],[17,1,2,3]):
     vm=VM(preset);vm.page=0;vm.run('CosmicAlienUpdate')
     assert not vm.events and vm.slots()==preset;cases+=1
 
-original=(ROOT/'originals/global/scripts/globals.ds').read_bytes()
+import os
+from pathlib import Path
+# Fixtures stay outside the repository when testing the curated release source.
+scripts=Path(os.environ.get('COSMIC_ORIGINAL_SCRIPTS',str(ROOT/'originals/global/scripts')))
+original=(scripts/'globals.ds').read_bytes()
 candidate=transform_globals(original)
 old={h:(a,c) for h,a,c in records(original)};new={h:(a,c) for h,a,c in records(candidate)}
 changed={h for h in old if old[h]!=new[h]}

@@ -116,6 +116,7 @@ namespace CosmicRecompi {
             foreach (DictionaryEntry variable in Environment.GetEnvironmentVariables())
                 if (((string)variable.Key).StartsWith("BEN10_", StringComparison.OrdinalIgnoreCase)) start.EnvironmentVariables.Remove((string)variable.Key);
             start.EnvironmentVariables["BEN10_PORTABLE_ROOT"] = folder;
+            start.EnvironmentVariables["REX_NATIVE_RESOLVE_TEXTURE_COPY"] = "true";
             if (returnToLauncherEvent != null)
                 start.EnvironmentVariables["BEN10_RETURN_TO_LAUNCHER_EVENT"] = returnToLauncherEvent;
             start.EnvironmentVariables["BEN10_GRAPHICS_BACKEND"] = "d3d12";

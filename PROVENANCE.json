@@ -3,8 +3,8 @@
     "origin": "https://github.com/rexglue/rexglue-sdk.git",
     "commit": "c94f5ebdcb3c9d1a460ca48e04f9758448f8d518",
     "local_patch": "sdk-patches/rex-sdk-local.diff",
-    "patch_sha256": "a125d54c555afc0d493d91e6fa7e7754e76ae7786450badf1cf6b24092343c35",
-    "diagnostic_include_paths": "Relocatable @COSMIC_CONSUMER@/ placeholder; no SDK algorithm change",
+    "patch_sha256": "a287624a829a05856dfc0752e8eb3e3446497e497f4cd41c496643535da8df63",
+    "diagnostic_include_paths": "Relocatable @COSMIC_CONSUMER@/ placeholder",
     "presentation_extension": "SDK SDL window unit: live output size and exclusive display mode; no GPU algorithm change"
   },
   "submodules": [
@@ -102,7 +102,7 @@
   "runtime_files": [
     {
       "name": "ben10.exe",
-      "sha256": "138d7a165d9004f9c9d91a94a5bd08de51775d2ab551c848ddd8c248c53da042"
+      "sha256": "3700892c73f1576360136f978e3bd31b87f7e71460417e94c8036e3618076542"
     },
     {
       "name": "concrt140.dll",
@@ -134,7 +134,7 @@
     },
     {
       "name": "rexgpu-xenos.dll",
-      "sha256": "0045b7feb52e2d6bc038b6b6e0c7258b36cdccdfcf386f4173f6a143204a238e"
+      "sha256": "157716da62bd29d31f450e05e57e0387f0d715a6577ca6b487cecb54530d7389"
     },
     {
       "name": "rexruntime.dll",
@@ -173,7 +173,7 @@
     ],
     "game_assets_included": false
   },
-  "release": "v0.4.0-alpha.3",
+  "release": "v0.4.0-alpha.4",
   "frontend_files": [
     {
       "name": "CosmicRecomp.exe",
@@ -181,7 +181,7 @@
     },
     {
       "name": "CosmicBridge.exe",
-      "sha256": "d8635d5c9be3a67724e585bde5db2bb744df6d0ecc94a61696cf9ef034ad0554"
+      "sha256": "892bf7f97d29a0ef2d45e330e3b0be70a4f3f12ce9f6e71c6fa90ace48445ade"
     }
   ],
   "correctness_hotfix": {
@@ -320,12 +320,57 @@
     "full_campaign_verified": false
   },
   "hero_time": {
-    "manual_attacks_and_meter_confirmed": true,
-    "observed_active_seconds": 60.025,
-    "observed_recharge_seconds": 30.0,
-    "every_ultimate_ability_verified": false,
+    "active_seconds": 60,
+    "maximum_recharge_seconds": 20,
+    "proportional_recharge": "used_seconds / 3",
+    "manual_flash_meter_early_return_confirmed": true,
+    "every_ability_verified": false
+  },
+  "alpha4": {
+    "release": "v0.4.0-alpha.4",
+    "status": "Alpha; limited scene-level validation",
+    "original_save_continue": "Previously manually confirmed",
+    "boss_transition": {
+      "manually_confirmed": true,
+      "all_aliens_and_hero_time_enabled": true,
+      "full_campaign_verified": false
+    },
+    "hero_time": {
+      "active_seconds": 60,
+      "maximum_recharge_seconds": 20,
+      "proportional_recharge": "used_seconds / 3",
+      "manual_flash_meter_early_return_confirmed": true,
+      "every_ability_verified": false
+    },
+    "source_recipe": {
+      "passed": true,
+      "callback_function_bodies_match_compiled_candidate": 12,
+      "generated_patch_idempotent": true,
+      "heap_mib": 96,
+      "pristine_sdk_patch_applies": true,
+      "full_clean_build_verified": false
+    },
+    "release_integration": {
+      "normal_level_loaded": true,
+      "automated_form_input_sequence_completed": true,
+      "every_transformation_individually_confirmed": false,
+      "exit_code": 0,
+      "shipping_bridge_sources_used": true,
+      "final_native_quality_image_reviewed": true,
+      "performance_benchmark": false
+    },
+    "performance": {
+      "release_to_release_benchmark": false,
+      "private_fixed_scene_gain_percent": 2.5155306476,
+      "stable_60_fps_verified": false
+    },
+    "known_issues": [
+      "Camera/scenery flicker above 30 FPS",
+      "Ultimate Big Chill wing transparency",
+      "Rath upgrades with All Aliens disabled"
+    ],
+    "private_test_room_excluded": true,
     "full_campaign_verified": false,
-    "proportional_recharge_included": false,
-    "wing_transparency_issue_open": true
+    "installer": "See the published Alpha 4 package-validation asset for post-packaging selected-folder, save-preservation and runtime-hash checks."
   }
 }

@@ -16,6 +16,7 @@ LOAD_PENDING = 'cosmic_hero_load_pending'
 PAIR_PENDING = 'cosmic_hero_pair_pending'
 FORMS = 'cosmic_hero_forms'
 OWNS_GATE = 'cosmic_hero_owns_mission_gate'
+COOLDOWN = 'cosmic_hero_recharge_duration'
 
 
 def authored():
@@ -61,7 +62,7 @@ def authored():
         c.get(3, flag); c.false(3, 'return_clear_' + str(flag)); c.jump('end')
         c.label('return_clear_' + str(flag))
     c.num(0, 4); c.put(0, PHASE)
-    c.num(0, RECHARGE_SECONDS); c.put(0, REMAINING)
+    c.get(0, COOLDOWN); c.put(0, REMAINING)
     c.native('cosmic_hero_recharge'); c.jump('end')
 
     c.label('timed'); c.num(1, 2); c.binary(0x10, 2, 0, 1)
@@ -79,11 +80,7 @@ def authored():
     c.put(3, REMAINING); c.jump('end')
     c.label('expired'); c.put(6, REMAINING)
     c.num(1, 2); c.binary(0x10, 2, 0, 1); c.false(2, 'ready')
-    # Set phase first to prevent repeated requests while the original async
-    # transition is pending. Do not begin recharge until Ben is observed.
-    c.num(1, 3); c.put(1, PHASE)
-    c.native('cosmic_hero_return')
-    c.get(7, 'switch_character_cb'); c.call(0xf02a2526, [7]); c.jump('end')
+    c.call('CosmicHeroReturn'); c.jump('end')
     c.label('ready'); c.num(1, 0); c.put(1, PHASE)
     c.nil(1); c.put(1, TARGET)
     c.native('cosmic_hero_ready')
@@ -101,8 +98,46 @@ def authored():
     c.get(1, 'gCurrentCharacter'); c.put(1, 0xf495406a)
     c.num(1, 1); c.put(1, PHASE)
     c.call('switch_to_ultimate')
+    c.call('CosmicHeroFlash')
     c.label('end'); c.done()
     result.append((crc('CosmicHeroRequest'), 0, c.finish()))
+
+    # Same original ROM effect used by both ordinary transformation directions
+    # (577E126C and F02A2526). Only the authored request invokes it here.
+    c = Code()
+    c.get(0, 'player'); c.false(0, 'end')
+    c.method(0, 'position', [0], 1)
+    c.field(2, 1, 0xfbdb2615); c.num(3, 0.5)
+    c.binary(0x0a, 2, 2, 3); c.fieldput(1, 0xfbdb2615, 2)
+    c.get(0, 0xaf1306de); c.false(0, 'end')
+    c.emit(2 << 8 | 5, 0xb90ffdc1); c.boolean(3, False)
+    c.method(0, 'createfromrominstance', [0, 2, 1, 3], 4)
+    c.false(4, 'end'); c.method(4, 'release', [4])
+    c.label('end'); c.done()
+    result.append((crc('CosmicHeroFlash'), 0, c.finish()))
+
+    c = Code()
+    c.get(0, PHASE); c.num(1, 2); c.binary(0x10, 2, 0, 1)
+    c.false(2, 'end')
+    c.get(0, 'gCurrentCharacter'); c.get(1, TARGET)
+    c.binary(0x10, 2, 0, 1); c.false(2, 'end')
+    c.num(0, ACTIVE_SECONDS); c.get(1, REMAINING)
+    c.binary(0x0b, 3, 0, 1); c.num(4, 0)
+    c.binary(0x13, 2, 3, 4); c.false(2, 'zero'); c.jump('upper')
+    c.label('zero'); c.num(3, 0)
+    c.label('upper'); c.binary(0x13, 2, 3, 0); c.false(2, 'scale')
+    c.num(3, ACTIVE_SECONDS)
+    c.label('scale'); c.num(4, RECHARGE_SECONDS / ACTIVE_SECONDS)
+    c.binary(0x0c, 3, 3, 4)
+    c.num(5, RECHARGE_SECONDS); c.binary(0x13, 2, 3, 5)
+    c.false(2, 'duration'); c.num(3, RECHARGE_SECONDS)
+    c.label('duration'); c.put(3, COOLDOWN)
+    # Own the pending transition before invoking the original asynchronous path.
+    c.num(1, 3); c.put(1, PHASE)
+    c.native('cosmic_hero_return')
+    c.get(7, 'switch_character_cb'); c.call(0xf02a2526, [7])
+    c.label('end'); c.done()
+    result.append((crc('CosmicHeroReturn'), 0, c.finish()))
 
     # Mission-preload transaction follows the original loader's completion
     # accounting, with a single character/descriptor pair in flight.
@@ -175,7 +210,9 @@ def authored():
     c.call('CosmicHeroMeter')
     c.num(1, 1)
     c.binary(0x10, 2, 0, 1); c.false(2, 'end')
-    c.call('CosmicHeroRequest')
+    c.get(0, PHASE); c.num(1, 2); c.binary(0x10, 2, 0, 1)
+    c.false(2, 'activate'); c.call('CosmicHeroReturn'); c.jump('end')
+    c.label('activate'); c.call('CosmicHeroRequest')
     c.label('end'); c.done()
     result.append((crc('CosmicHeroUpdate'), 0, c.finish()))
 
@@ -212,7 +249,7 @@ def authored():
         c.method(2, 'unloaddesc', [2, 9, 10])
     c.label('clear')
     for name in (LOAD_ACTIVE, LOAD_NEXT, LOAD_PENDING, PAIR_PENDING, FORMS, OWNS_GATE,
-                 READY, TARGET, REMAINING):
+                 READY, TARGET, REMAINING, COOLDOWN):
         c.nil(0); c.put(0, name)
     c.num(0, 0); c.put(0, PHASE)
     c.done()

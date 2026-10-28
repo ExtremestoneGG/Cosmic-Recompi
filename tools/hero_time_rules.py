@@ -8,7 +8,7 @@ from dataclasses import dataclass
 ULTIMATE_PAIRS = {1: 15, 2: 13, 3: 14, 4: 12, 5: 16}
 BEN = 17
 ACTIVE_SECONDS = 60.0
-RECHARGE_SECONDS = 30.0
+RECHARGE_SECONDS = 20.0
 
 
 def eligible_target(current_form, *, enabled, resources_ready, busy):
@@ -28,6 +28,7 @@ class Cycle:
     phase: str = 'ready'
     target: int | None = None
     remaining: float = 0.0
+    recharge_duration: float = RECHARGE_SECONDS
 
     def request(self, current_form, *, enabled, resources_ready, busy):
         if self.phase != 'ready':
@@ -52,7 +53,7 @@ class Cycle:
         if self.phase == 'returning':
             if current_form == BEN and not busy:
                 self.phase = 'recharging'
-                self.remaining = RECHARGE_SECONDS
+                self.remaining = self.recharge_duration
             return None
         if self.phase not in ('active', 'recharging'):
             return None
@@ -60,11 +61,18 @@ class Cycle:
         if self.remaining:
             return None
         if self.phase == 'active':
-            self.phase = 'returning'
-            return BEN
+            return self.return_early()
         self.phase = 'ready'
         self.target = None
         return None
+
+    def return_early(self):
+        if self.phase != 'active':
+            return None
+        used = min(ACTIVE_SECONDS, max(0.0, ACTIVE_SECONDS - self.remaining))
+        self.recharge_duration = used * RECHARGE_SECONDS / ACTIVE_SECONDS
+        self.phase = 'returning'
+        return BEN
 
     @property
     def transformations_locked(self):

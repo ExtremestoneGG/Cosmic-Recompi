@@ -9,13 +9,13 @@ Experimental Windows 10/11 x64 native port of **Ben 10 Ultimate Alien: Cosmic De
 
 **Bring your own supported copy.** No ISO, XEX, original assets, generated game source or personal saves are distributed.
 
-[Download](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases/tag/v0.4.0-alpha.3) · [User guide](USER_GUIDE.md) · [Build guide](BUILD.md) · [Validation](VALIDATION.json) · [Sources](SOURCES.md)
+[Download](https://github.com/ExtremestoneGG/Cosmic-Recompi/releases/tag/v0.4.0-alpha.4) · [User guide](USER_GUIDE.md) · [Build guide](BUILD.md) · [Validation](VALIDATION.json) · [Sources](SOURCES.md)
 
 Latest update: [animation and lever crash fixes](RELEASE_NOTES.md), including a manual phase-1 lever test. Rath upgrades with All Aliens disabled remain under investigation.
 
-Latest update: **Hero Time**, original in-game Extras menus and a manually verified 60/30 cycle. [Details](RELEASE_NOTES.md).
+Latest update: **boss-transition stability, proportional Hero Time and accumulated native-quality optimizations**. [Details](RELEASE_NOTES.md).
 
-## Alpha v0.4.0-alpha.3 — Hero Time
+## Alpha v0.4.0-alpha.4 — stability and performance
 
 - One portable EXE: select your ISO, wait for acceptance, then **Prepare game**. Import uses a precompiled native runtime; it does not compile C++ on the player's PC.
 - Separate launcher with **Play, Settings, Quit**. Play closes the frontend before gameplay. There is no automatic-start checkbox.
@@ -27,7 +27,7 @@ Latest update: **Hero Time**, original in-game Extras menus and a manually verif
 
 All Aliens starts **OFF**. Hold LT and tap RT to change pages; RT abilities are suppressed while LT is held. Normal Rath progression and the original cheat are preserved. All Aliens makes Rath available without changing the profile unlock. Four Arms is not included.
 
-Hero Time starts **OFF**. Enable it under **Options → Gameplay → Extras**. Use a compatible normal alien, then **L3 / F** for its corresponding Ultimate. It lasts up to 60 seconds, followed by 30 seconds as Ben. See [Hero Time details](RELEASE_NOTES.md) for tested scope and known issues.
+Hero Time starts **OFF**. Enable it under **Options → Gameplay → Extras**. Use a compatible normal alien, then **L3 / F** for its corresponding Ultimate. It lasts up to 60 seconds, followed by proportional recharge as Ben (time used / 3, maximum 20 seconds). See [Hero Time details](RELEASE_NOTES.md) for tested scope and known issues.
 
 ## Keyboard and controllers
 
@@ -61,7 +61,7 @@ Save/Continue was manually confirmed in an earlier test. No saves are supplied. 
 
 ## Known limits
 
-Stable 60 FPS and camera/scenery flicker above 30 FPS remain open. Full campaign compatibility, extended combat/abilities and the earlier first-boss death regression remain unverified. Returning from the main menu to Press Start with B is pending. No new FPS gain is claimed for this settings/stability release. Unsupported exclusive resolutions are rejected and logged.
+Stable 60 FPS and camera/scenery flicker above 30 FPS remain open. Full campaign compatibility, extended combat/abilities and the earlier first-boss death regression remain unverified. Returning from the main menu to Press Start with B is pending. Retained performance changes and the limits of the fixed-scene measurement are documented in [release notes](RELEASE_NOTES.md). Unsupported exclusive resolutions are rejected and logged.
 
 ReXGlue supplies the kernel, GPU translation and audio. This project does not replace them with a new renderer or kernel. [SOURCES.md](SOURCES.md), [THIRD_PARTY.md](THIRD_PARTY.md), [PROVENANCE.json](PROVENANCE.json) and `LICENSES/` record sources, revisions, changes and licenses. Complete corresponding SDK sources accompany the release. A full clean-machine rebuild remains unverified.
 
@@ -77,7 +77,9 @@ O All Aliens começa desligado. Segure LT e toque RT para trocar páginas; habil
 
 Wipe Data pede confirmação, fecha o jogo, guarda os dados deste título em `game-data/save-backups` e retorna ao launcher. As configurações nativas de vídeo são preservadas. Mantenha `game-data/user` ao atualizar. Logs ficam em `game-data/logs`.
 
-A meta de 60 FPS estáveis e a tremedeira acima de 30 FPS continuam pendentes. A campanha completa e o crash antigo ao morrer no primeiro chefe ainda precisam de verificação. B para voltar ao Press Start também está pendente. Esta atualização não anuncia ganho novo de FPS. Consulte as [notas](RELEASE_NOTES.md), [testes](TESTING.md) e [origens](SOURCES.md).
+A meta de 60 FPS estáveis e a tremedeira acima de 30 FPS continuam pendentes. A campanha completa e o crash antigo ao morrer no primeiro chefe ainda precisam de verificação. B para voltar ao Press Start também está pendente. As otimizações acumuladas e os limites da medição estão nas notas desta Alpha. Consulte as [notas](RELEASE_NOTES.md), [testes](TESTING.md) e [origens](SOURCES.md).
+
+Hero Time agora inclui brilho verde e recarga proporcional ao uso, limitada a 20 segundos. A correção da transição dos Vreedle e as otimizações acumuladas estão nas [notas da Alpha 4](RELEASE_NOTES.md).
 
 ## Teclado e controle
 

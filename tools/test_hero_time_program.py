@@ -2,7 +2,7 @@
 
 This does not claim that resource loading or real transformations are ready.
 """
-from test_all_aliens_script import VM
+from test_all_aliens_script import VM, scripts
 from prepare_hero_time_candidate import authored, TARGET, READY, PHASE
 from prepare_all_aliens_candidate import crc, decode
 from hero_time_rules import ULTIMATE_PAIRS
@@ -45,7 +45,7 @@ print(f'Hero Time authored resolver: {cases + 1} cases passed; gameplay unverifi
 
 # Exercise the authored lifecycle itself, with original engine calls modeled
 # as observations. No test directly assigns the result of a transformation.
-from prepare_hero_time_candidate import REMAINING
+from prepare_hero_time_candidate import REMAINING, COOLDOWN
 for identity in vm.functions:
     vm.globals[identity] = identity
 vm.globals[crc('overlay')][crc('cosmic_hero_enabled')] = lambda *_: 1
@@ -85,13 +85,13 @@ vm.run('CosmicHeroAdvance')
 assert len(vm.events) == 2 and vm.globals[crc(PHASE)] == 3
 vm.globals[crc('gCurrentCharacter')] = 17
 vm.run('CosmicHeroAdvance')
-assert vm.globals[crc(PHASE)] == 4 and vm.globals[crc(REMAINING)] == 30
+assert vm.globals[crc(PHASE)] == 4 and vm.globals[crc(REMAINING)] == 20
 vm.run('CosmicHeroRequest')
 assert len(vm.events) == 2
-delta[0] = 30
+delta[0] = 20
 vm.run('CosmicHeroAdvance')
 assert vm.globals[crc(PHASE)] == 0 and vm.globals[crc(TARGET)] is None
-print('Hero Time authored lifecycle: activation confirmation, 60/30 timing and single transition requests passed.')
+print('Hero Time authored lifecycle: activation confirmation, 60/20 timing and single transition requests passed.')
 
 from prepare_hero_time_candidate import LOAD_ACTIVE, LOAD_PENDING
 loader = VM([1, 2, 3, 4])
@@ -143,7 +143,7 @@ assert loader.events == before
 
 from prepare_hero_time_candidate import transform_globals
 from prepare_all_aliens_candidate import ROOT, records, transform_globals as aliens_transform
-original = (ROOT / 'originals/global/scripts/globals.ds').read_bytes()
+original = (scripts / 'globals.ds').read_bytes()
 patched = transform_globals(original)
 combined = aliens_transform(patched, preload_resources=True)
 old = {identity: (args, code) for identity, args, code in records(original)}
@@ -163,7 +163,7 @@ person = {crc('getmaxenergy'): lambda *_: 100.0,
           crc('setenergy'): lambda _, value: meter_values.append(value)}
 vm.globals[crc('player')] = {crc('person'): lambda *_: person}
 for phase, remaining, expected in [(2, 60, 100), (2, 30, 50), (2, 0, 0),
-                                    (4, 30, 0), (4, 15, 50), (4, 0, 100)]:
+                                    (4, 20, 0), (4, 10, 50), (4, 0, 100)]:
     vm.globals[crc(PHASE)] = phase
     vm.globals[crc(REMAINING)] = remaining
     vm.run('CosmicHeroMeter')
@@ -205,6 +205,57 @@ loader.run('CosmicHeroUnload')
 assert sorted(event[1:] for event in loader.events if event[0] == 'load') == sorted(
     event[1:] for event in loader.events if event[0] == 'unload')
 print('Hero Time death/story interruption and mid-mission resource accounting passed.')
+
+for used in (0, 1, 10, 30, 45, 60):
+    vm.globals[crc(PHASE)] = 2
+    vm.globals[crc(TARGET)] = 14
+    vm.globals[crc('gCurrentCharacter')] = 14
+    vm.globals[crc(REMAINING)] = 60-used
+    before = len(vm.events)
+    vm.run('CosmicHeroReturn')
+    assert abs(vm.globals[crc(COOLDOWN)] - used/3) < 0.000001
+    assert 0 <= vm.globals[crc(COOLDOWN)] <= 20
+    assert vm.globals[crc(PHASE)] == 3 and len(vm.events) == before+1
+    vm.run('CosmicHeroReturn')
+    assert len(vm.events) == before+1
+    vm.globals[crc('gCurrentCharacter')] = 17
+    vm.run('CosmicHeroAdvance')
+    assert abs(vm.globals[crc(REMAINING)] - used/3) < 0.000001
+    vm.run('CosmicHeroMeter')
+    assert abs(meter_values[-1] - (100-used*100/60)) < 0.00001
+person[crc('isdead')] = lambda *_: False
+vm.globals[crc(LOAD_ACTIVE)] = True
+vm.globals[crc(PHASE)] = 2
+vm.globals[crc(TARGET)] = 14
+vm.globals[crc('gCurrentCharacter')] = 14
+vm.globals[crc(REMAINING)] = 30
+delta[0] = 0
+vm.run('CosmicHeroUpdate')
+assert vm.globals[crc(PHASE)] == 3 and abs(vm.globals[crc(COOLDOWN)] - 10) < 0.000001
+print('Hero Time proportional return: actual L3 route, one-third-used recharge, 20-second maximum and partial meter verified in VM model.')
+
+flash_events = []
+position = {crc('x'): 2, crc('y'): 3, crc('z'): 4}
+vm.globals[crc('player')][crc('position')] = lambda *_: dict(position)
+effect = {crc('release'): lambda *_: flash_events.append(('release',))}
+def spawn(_, identity, location, flag):
+    flash_events.append(('spawn', identity, dict(location), flag))
+    return effect
+vm.globals[0xaf1306de] = {crc('createfromrominstance'): spawn}
+vm.run('CosmicHeroFlash')
+assert flash_events == [('spawn', 0xb90ffdc1, {crc('x'): 2, crc('y'): 3.5, crc('z'): 4}, False), ('release',)]
+assert position[crc('y')] == 3
+flash_events.clear()
+vm.globals[crc(PHASE)] = 0
+vm.globals[crc(READY)] = True
+vm.globals[crc('gCurrentCharacter')] = 17
+vm.run('CosmicHeroRequest')
+assert not flash_events, 'Rejected Ben request must not spawn the effect'
+vm.globals[crc('gCurrentCharacter')] = 3
+vm.run('CosmicHeroRequest')
+vm.run('CosmicHeroRequest')
+assert len(flash_events) == 2, 'One original flash and one handle release per accepted request'
+print('Hero Time flash: original effect interface, offset, release and accepted-request-only behavior passed.')
 
 import hashlib, json
 from prepare_all_aliens_candidate import encode

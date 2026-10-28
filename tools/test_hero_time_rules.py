@@ -4,6 +4,15 @@ from hero_time_rules import Cycle, ULTIMATE_PAIRS, eligible_target
 
 
 class Rules(unittest.TestCase):
+    def test_proportional_early_return(self):
+        for used in (0, 1, 10, 30, 45, 60):
+            c = Cycle(phase='active', target=14, remaining=60-used)
+            self.assertEqual(c.return_early(), 17)
+            self.assertAlmostEqual(c.recharge_duration, used/3)
+            self.assertIsNone(c.return_early())
+            c.update(17, 1, gameplay_running=True)
+            self.assertAlmostEqual(c.remaining, used/3)
+
     def test_only_corresponding_normal_forms(self):
         for form in range(0, 32):
             self.assertEqual(eligible_target(form, enabled=True,
@@ -35,8 +44,8 @@ class Rules(unittest.TestCase):
         c.update(14, 100, gameplay_running=True)
         self.assertEqual(c.phase, 'returning')
         c.update(17, 100, gameplay_running=True)
-        self.assertEqual(c.remaining, 30)
-        c.update(17, 29, gameplay_running=True)
+        self.assertEqual(c.remaining, 20)
+        c.update(17, 19, gameplay_running=True)
         self.assertTrue(c.transformations_locked)
         c.update(17, 1, gameplay_running=True)
         self.assertEqual(c.phase, 'ready')

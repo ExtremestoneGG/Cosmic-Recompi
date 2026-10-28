@@ -1,116 +1,47 @@
 {
-  "release": "v0.4.0-alpha.2",
-  "status": "Alpha, limited scene-level validation",
-  "previous_release_checks": {
-    "release": "v0.4.0-alpha.1",
-    "results": {
-      "release": "v0.4.0-alpha.1",
-      "status": "Alpha, limited scene-level validation",
-      "original_save_continue": "Previously user-confirmed, separate from reset test",
-      "all_aliens_transformations": {
-        "forms": [
-          "Water Hazard",
-          "NRG",
-          "Swampfire",
-          "AmpFibian",
-          "Big Chill",
-          "Humungousaur",
-          "Spidermonkey",
-          "Echo Echo",
-          "Terraspin",
-          "Armodrillo",
-          "Rath"
-        ],
-        "scene": "Paris corridor checkpoint",
-        "scope": "Earlier eleven-form visual probe; Rath rechecked with current presentation runtime"
-      },
-      "normal_rath_progression_preserved": true,
-      "RT_abilities_suppressed_while_LT_held": true,
-      "show_fps_single_toggle": "Counter and frame-time graph together; ON/OFF callbacks verified",
-      "live_output_resolution": {
-        "same_process": true,
-        "tested_sizes": [
-          [
-            1280,
-            720
-          ],
-          [
-            1920,
-            1080
-          ]
-        ],
-        "internal_supersampling": false
-      },
-      "display_modes": {
-        "exclusive": {
-          "visible_startup_samples": 4,
-          "client": [
-            1280,
-            720
-          ],
-          "caption": false
-        },
-        "borderless": {
-          "visible_startup_samples": 4,
-          "client": [
-            1920,
-            1080
-          ],
-          "caption": false
-        }
-      },
-      "quit_to_launcher": true,
-      "wipe_data": {
-        "cancel_then_confirm": true,
-        "six_progress_files_archived_byte_identically": true,
-        "additional_container_headers_preserved": true,
-        "original_saves_untouched": true,
-        "archive_after_process_exit": true,
-        "native_video_settings_preserved": true,
-        "launcher_reopened": true
-      },
-      "sdk_parent_relink_and_window_unit_identical": true,
-      "GPU_algorithm_changes": false,
-      "full_campaign": false,
-      "first_boss_death_regression": false,
-      "stable_60_FPS": false,
-      "flicker_above_30_FPS_fixed": false,
-      "next_priority": "Uncapped camera/scenery flicker and cadence",
-      "new_FPS_gain_claimed": false,
-      "complete_clean_machine_rebuild": false
-    }
-  },
-  "animation_hotfix": {
-    "alpha": true,
-    "animation_timing_original_initializer_cases": 2476,
-    "eight_banks_csharp_python_parity": true,
-    "legacy_upgrade_and_unknown_edit_rejection": true,
-    "forms_visually_reviewed": 11,
-    "rath_movement_jump_attack_input_probe_exit": 0,
-    "big_chill_corridor_replay_exit": 0,
-    "exact_lever_interaction_verified": true,
-    "full_campaign_verified": false,
-    "above_30_fps_flicker_fixed": false,
-    "new_fps_gain_measured": false,
-    "lever_validation": "User manually tested the first lever in phase 1 and reported no crash.",
-    "rath_upgrades_all_aliens_off": "Reported locked; pending investigation"
-  },
-  "full_campaign": false,
-  "stable_60_FPS": false,
-  "flicker_above_30_FPS_fixed": false,
-  "ultimate_hotfix": {
-    "user_confirmed": true,
-    "timing_cases": 2660,
-    "eight_banks_parity": true,
+  "release": "v0.4.0-alpha.4",
+  "status": "Alpha; limited scene-level validation",
+  "original_save_continue": "Previously manually confirmed",
+  "boss_transition": {
+    "manually_confirmed": true,
+    "all_aliens_and_hero_time_enabled": true,
     "full_campaign_verified": false
   },
   "hero_time": {
-    "manual_attacks_and_meter_confirmed": true,
-    "observed_active_seconds": 60.025,
-    "observed_recharge_seconds": 30.0,
-    "every_ultimate_ability_verified": false,
-    "full_campaign_verified": false,
-    "proportional_recharge_included": false,
-    "wing_transparency_issue_open": true
-  }
+    "active_seconds": 60,
+    "maximum_recharge_seconds": 20,
+    "proportional_recharge": "used_seconds / 3",
+    "manual_flash_meter_early_return_confirmed": true,
+    "every_ability_verified": false
+  },
+  "source_recipe": {
+    "passed": true,
+    "callback_function_bodies_match_compiled_candidate": 12,
+    "generated_patch_idempotent": true,
+    "heap_mib": 96,
+    "pristine_sdk_patch_applies": true,
+    "full_clean_build_verified": false
+  },
+  "release_integration": {
+    "normal_level_loaded": true,
+    "automated_form_input_sequence_completed": true,
+    "every_transformation_individually_confirmed": false,
+    "exit_code": 0,
+    "shipping_bridge_sources_used": true,
+    "final_native_quality_image_reviewed": true,
+    "performance_benchmark": false
+  },
+  "performance": {
+    "release_to_release_benchmark": false,
+    "private_fixed_scene_gain_percent": 2.5155306476,
+    "stable_60_fps_verified": false
+  },
+  "known_issues": [
+    "Camera/scenery flicker above 30 FPS",
+    "Ultimate Big Chill wing transparency",
+    "Rath upgrades with All Aliens disabled"
+  ],
+  "private_test_room_excluded": true,
+  "full_campaign_verified": false,
+  "installer": "See the published Alpha 4 package-validation asset for post-packaging selected-folder, save-preservation and runtime-hash checks."
 }

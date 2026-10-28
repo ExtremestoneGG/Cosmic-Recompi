@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include "performance_visibility.h"
+#include "memory_metrics.h"
 
 // Uses the SDK's existing UI renderer. Never generates independent UI frames.
 class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
@@ -19,6 +20,7 @@ class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
     const bool refreshed=now-last_refresh_>=std::chrono::milliseconds(250);
     if(refreshed) {
       stats_=Ben10ReadFrameStats();last_refresh_=now;
+      memory_.Refresh();
     }
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x-12,12),ImGuiCond_Always,ImVec2(1,0));
     ImGui::SetNextWindowBgAlpha(.80f);
@@ -28,6 +30,13 @@ class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
     if(ImGui::Begin("Game performance",nullptr,flags)) {
       ImGui::Text("Game FPS: %.1f",stats_.fps);
       ImGui::Text("Frame time: %.2f ms | p95: %.2f ms",stats_.latest_ms,stats_.p95_ms);
+      constexpr double MiB=1024.0*1024.0;
+      if(memory_.ram_available)
+        ImGui::Text("RAM: %.0f MiB | Private commit: %.0f MiB",memory_.ram/MiB,memory_.committed/MiB);
+      else ImGui::TextDisabled("RAM: unavailable");
+      if(memory_.gpu_available)
+        ImGui::Text("VRAM/local: %.0f MiB | GPU shared: %.0f MiB",memory_.gpu_local/MiB,memory_.gpu_shared/MiB);
+      else ImGui::TextDisabled("GPU memory: unavailable");
       if(stats_.count) {
         float maximum=50;
         for(size_t i=0;i<stats_.count;++i)maximum=std::max(maximum,stats_.frame_times_ms[i]);
@@ -43,6 +52,12 @@ class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
           file<<"{\"fps\":"<<stats_.fps<<",\"last_ms\":"<<stats_.latest_ms
               <<",\"p95_ms\":"<<stats_.p95_ms<<",\"history_count\":"<<stats_.count
               <<",\"submitted_frames\":"<<stats_.submitted_frames
+              <<",\"ram_available\":"<<(memory_.ram_available?"true":"false")
+              <<",\"ram_working_set_bytes\":"<<memory_.ram
+              <<",\"private_commit_bytes\":"<<memory_.committed
+              <<",\"gpu_memory_available\":"<<(memory_.gpu_available?"true":"false")
+              <<",\"gpu_local_bytes\":"<<memory_.gpu_local
+              <<",\"gpu_shared_bytes\":"<<memory_.gpu_shared
               <<",\"vertices\":"<<ImGui::GetWindowDrawList()->VtxBuffer.Size
               <<",\"x\":"<<pos.x<<",\"y\":"<<pos.y
               <<",\"width\":"<<size.x<<",\"height\":"<<size.y
@@ -54,5 +69,6 @@ class Ben10PerformanceOverlay final : public rex::ui::ImGuiDialog {
   }
  private:
   Ben10FrameStats stats_{};
+  Ben10MemoryMetrics memory_{};
   std::chrono::steady_clock::time_point last_refresh_{};
 };
