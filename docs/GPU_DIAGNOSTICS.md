@@ -1,4 +1,4 @@
-# GPU test 3 — detailed CPU graphics diagnosis
+# GPU test 4 — detailed CPU graphics diagnosis
 
 **Experimental diagnostic; no performance fix or FPS gain is claimed.**
 Test 2 captured a slow/high-draw subset at about 15.48 FPS, with approximately
