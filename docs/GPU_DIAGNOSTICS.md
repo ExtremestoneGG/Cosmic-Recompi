@@ -16,11 +16,63 @@ The rejected local vertex-batching experiment is **not** included.
 
 ## Test instructions
 
-1. Install this complete package into a separate folder and import your ISO.
-2. Set 720p and the same FPS/display settings used for test 2.
-3. Stay in the slow gameplay scene for at least 30 seconds, then close normally.
-4. Send `game-data/logs`: the three normal logs, `gpu-timing-*.jsonl`, and
-   **`cpu-draw-phases-*.jsonl`**. Copy these before another launch.
+### Download and prepare
+
+1. Under **Assets** on this release page, download
+   **`CosmicRecomp-v0.4.0-alpha.4-gpu-test.4-win64.exe`**. You do not need the
+   source ZIP to perform this test. Do not use GPU test 1 or 2 for this capture.
+2. Close any running copy of the game. Run the downloaded EXE and choose a
+   **new installation folder**, separate from your regular installation. Keep
+   your existing installation and saves intact. Do not copy individual DLLs.
+3. In the launcher, select your own supported Xbox 360 ISO and prepare the game.
+   Wait for preparation to finish. Then click **Play** normally; there is no
+   special keyboard shortcut or external profiler to start.
+4. A fresh installation automatically selects the required `measure-phases`
+   diagnostic profile. If you reused a folder with
+   `game-data/graphics-diagnostic-profile.txt`, change that file's entire
+   contents to `measure-phases` **before launching**. Otherwise a previous
+   profile may disable the new CPU log.
+
+### Reproduce the low FPS
+
+5. Set **Resolution: 720p**, **Frame limit: Unlimited**, and **Display mode:
+   Windowed** in Video settings. These match the previous submitted capture.
+   Keep external FPS limiters disabled for this diagnostic. No driver changes
+   or tool installation are needed. Known camera flicker above 30 FPS is not
+   fixed by this test build.
+6. Load the **same gameplay area where you previously saw 15–20 FPS**. A title
+   screen, menu, loading screen or cutscene is not a useful substitute.
+7. Leave the character and camera still in that slow area for **at least
+   30 seconds**. The timing files update automatically, roughly every five
+   seconds. Do not change resolution, FPS limit or display mode during capture.
+   No recording, screenshot or manual capture button is required.
+8. Close the game normally. **Do not launch it again before copying the logs.**
+
+### Send the results
+
+9. Open the installation folder you selected in step 2, then **`game-data/logs`**.
+   Copy the following files into a ZIP:
+
+   ```text
+   launcher.log
+   startup-output.log
+   runtime.log
+   gpu-timing-*.jsonl
+   cpu-draw-phases-*.jsonl
+   ```
+
+   The asterisk means the automatically generated date/ID in the filename;
+   include the actual matching files, not a file literally named with `*`.
+10. Send that ZIP and a short note identifying the level/area you tested and
+    the approximate FPS you saw. Do not include the ISO, extracted game files,
+    saves, cache or the entire installation folder. You may redact personal
+    paths while preserving timing data and error messages.
+
+**If `cpu-draw-phases-*.jsonl` is missing:** send the three ordinary logs anyway
+and tell us it was missing. Check that you used GPU test 4, stayed in actual
+gameplay for 30 seconds, and did not retain an older profile file. Do not rebuild
+the project, install profiling software or start replacing DLLs to work around
+the missing file.
 
 The default profile is `measure-phases`. If you previously created
 `game-data/graphics-diagnostic-profile.txt`, put `measure-phases` in that file
