@@ -23,7 +23,16 @@ class Driver {
   File.Delete(file); var defaults=new ProcessStartInfo();
   foreach(string key in keys)defaults.EnvironmentVariables.Remove(key);
   InstalledGame.ApplyGraphicsDiagnosticProfile(root,defaults,log);
-  for(int k=0;k<3;k++)if(defaults.EnvironmentVariables[keys[k]]!=(k==0?"false":null))return 21;
+  foreach(string key in keys)if(defaults.EnvironmentVariables[key]!=null)return 21;
+  if(String.IsNullOrEmpty(defaults.EnvironmentVariables["BEN10_D3D12_PROFILE"]))return 24;
+  foreach(string profile in new string[]{"measure-standard","measure-gpu-bounds"}) {
+   File.WriteAllText(file,profile);var measured=new ProcessStartInfo();
+   measured.EnvironmentVariables.Remove("BEN10_EDRAM_BOUNDS");
+   InstalledGame.ApplyGraphicsDiagnosticProfile(root,measured,log);
+   if(measured.EnvironmentVariables["BEN10_EDRAM_BOUNDS"]!=(profile=="measure-gpu-bounds"?"false":null))return 22;
+   string output=measured.EnvironmentVariables["BEN10_D3D12_PROFILE"];
+   if(String.IsNullOrEmpty(output) || Path.GetDirectoryName(output)!=root || Path.GetExtension(output)!=".jsonl")return 23;
+  }
   Console.WriteLine("Profile isolation, experimental default and invalid-profile rejection passed."); return 0;
  }
 }

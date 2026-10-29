@@ -1,72 +1,60 @@
-# Experimental RTX 4060 investigation — Alpha 4 GPU test 1
+# Alpha 4 GPU test 2 — automatic CPU/GPU timing
 
-**Possible fix / diagnostic test, not a confirmed performance improvement.**
-This package targets a report of 15–20 FPS on an Intel Core i7 14th Gen HX,
-NVIDIA RTX 4060 Laptop GPU and 32 GB DDR5. We do not have that hardware locally.
-The supplied logs confirmed use of the RTX 4060, 1080p output and a 30 FPS limit.
-They contain no per-frame timings and show normal exits, not the separate source
-build failure. No percentage improvement is claimed.
+**Diagnostic build, not a confirmed performance fix.** GPU test 1 did not
+resolve the collaborator's reported performance problem. Its logs confirmed
+the RTX 4060 Laptop, CPU bounds disabled, 1080p and unlimited FPS. No actual
+frame timings were available. This build collects them automatically.
 
-## What changes
+Install separately and provide your own supported ISO. Play in the slow scene
+for at least 30 seconds, then close normally. Send the contents of
+`game-data/logs`: the three normal logs plus the new `gpu-timing-*.jsonl` file.
+Copy them before the next run. Do not attach your ISO or save data.
 
-The default experimental profile disables the SDK's CPU draw-extent estimator,
-using its existing fallback. This tests whether CPU-side vertex evaluation limits
-performance on this system. It may increase GPU transfer work or cause a visual
-regression; neither benefit nor visual equivalence is assumed. No resolution,
-texture quality, game speed, frame generation or gameplay logic is changed.
-The complete EXE/runtime/GPU set is identical to Alpha 4. Only the C# process
-bridge changes. Do not replace individual native DLLs.
+The default is `measure-standard`: official Alpha 4 graphics policy with GPU
+timestamp and graphics-worker timing collection. The native EXE, GPU and runtime
+are unchanged. Only the process bridge differs. Queries can add overhead; this
+is bottleneck attribution, not a clean benchmark or an FPS gain claim.
 
-Install into a **separate folder** and import your own supported ISO. Choose
-720p for comparison with the development target; keep the same scene, camera,
-display mode, FPS limit and power conditions between profiles. First test at
-30 FPS; an optional uncapped comparison may show the known above-30 camera
-flicker. That flicker is not fixed here. Preserve saves before testing.
+The JSONL records game-frame intervals, FPS, p50/p95/p99, graphics-worker CPU,
+draw/submit/fence wall times, and guest-command GPU time. Wall scopes overlap:
+do not sum them. GPU time excludes presentation/idle gaps and is not GPU usage
+percentage. Graphics-worker CPU is not the whole game's CPU time. Preserve raw
+files and identify the gameplay portion; menu/startup samples are not comparable.
 
-## Select one profile
+For a comparison with the native-720p development target, choose 720p in Video.
+This does not establish that 1080p is the cause. Keep the same scene, camera,
+display mode and FPS setting; report them. The tested hardware is an i7 14th Gen
+HX, RTX 4060 Laptop and 32 GB DDR5. Remote timing results remain pending.
 
-Close the game. In the selected installation's `game-data` folder, create the
-plain text file `graphics-diagnostic-profile.txt` with exactly one of these:
+Optional file `game-data/graphics-diagnostic-profile.txt` accepts:
+- `measure-standard`: default, official graphics policy plus timing.
+- `measure-gpu-bounds`: only CPU draw-extent estimation off, plus timing.
+- `standard`: official policy without this timing collector.
+- `gpu-bounds`: CPU draw-extent estimation off without timing.
+- `viewport` or `stencil`: independent workaround tests, no timing collector.
 
-| Text | Change relative to official Alpha 4 |
-| --- | --- |
-| `gpu-bounds` | CPU draw-extent estimator off; experimental default if file is absent |
-| `standard` | Official Alpha 4 graphics policy; comparison baseline |
-| `viewport` | Only the viewport workaround off; CPU estimator remains on |
-| `stencil` | Only the stencil workaround off; CPU estimator remains on |
+Close/reopen between profiles. Test 1's previous `gpu-bounds` profile file, if
+present, overrides the new default: remove that file or write `measure-standard`.
+Only this diagnostic package reads it. No save data is modified by the selector.
+Normal gameplay still saves through the original game. Unknown profile names
+are rejected instead of silently selecting a different test.
 
-These are independent tests, not cumulative optimizations. Start with
-`standard`, then `gpu-bounds`. Try the other two only if needed. Return to
-`standard` if geometry, shadows, transparency or lighting changes. Reopen the
-game after changing profiles. The standard public build ignores this file.
+The bridge tests cover isolation, timing-path selection and rejected inputs.
+Local startup, timing-file generation and installer checks are recorded in the
+separate VALIDATION asset. No RTX 4060 performance gain or complete clean-machine
+SDK rebuild is claimed. Known above-30-FPS camera flicker remains unresolved.
+The main Alpha remains the default download. No assets or private test room ship.
 
-Send FPS observations from the same scene for each profile, any visual defects,
-and `game-data/logs/launcher.log`, `startup-output.log`, `runtime.log` copied
-before the next launch. The launcher records the selected profile; the native
-runtime records the resulting setting. Do not publish personal paths in issues.
-
-## Validation boundaries
-
-The bridge compiles and automated tests check independent profile selection,
-the experimental default, and rejection of unknown profiles. Native runtime
-hashes are checked against Alpha 4. Local startup results are recorded separately.
-There is no RTX 4060 benchmark yet, no proven FPS gain and no clean-machine full
-SDK rebuild claim. A separate host-timer test showed one 38.716 ms interval
-(33.436 ms mean); its strict jitter gate failed. This package changes no timer
-code and does not claim that issue is resolved.
-
-Source build: use the pinned SDK and complete corresponding sources from
-Alpha 4, with this release's consumer source snapshot. Build the bridge with
-`python tools/build_release_bridge.py --hero-time --gpu-diagnostics`.
-The regular command without `--gpu-diagnostics` preserves normal behavior.
+Source: use the matching corresponding-source archive and the documented SDK
+revision/patch. Build the bridge with `--hero-time --gpu-diagnostics`.
+Omit `--gpu-diagnostics` for the ordinary uninstrumented launcher.
 
 ## Português
 
-Versão experimental para investigar 15–20 FPS na RTX 4060 Laptop. Não há ganho
-confirmado. Instale separadamente, forneça sua ISO e compare a mesma cena em
-720p. O perfil padrão experimental desliga a estimativa de limites na CPU;
-o caminho original do SDK continua disponível. Pode haver regressões visuais.
-Crie `game-data/graphics-diagnostic-profile.txt`: `standard` reproduz a política
-da Alpha 4; `gpu-bounds` testa a candidata. `viewport` e `stencil` são testes
-independentes. Feche e reabra o jogo entre perfis. Envie os três logs e suas
-observações. Flicker acima de 30 FPS e validação na RTX 4060 seguem pendentes.
+Versão de diagnóstico, sem ganho confirmado. A primeira candidata não resolveu.
+Instale separadamente, rode a cena lenta por pelo menos 30 segundos e envie os
+três logs mais `gpu-timing-*.jsonl` em `game-data/logs`. O padrão usa a política
+gráfica da Alpha 4 e registra tempos de CPU/GPU; consultas podem ter custo.
+Se mantiver um arquivo de perfil antigo, escreva `measure-standard` nele.
+Compare em 720p com cena/câmera/configurações iguais. Flicker acima de 30 FPS
+continua pendente. A Alpha principal não foi substituída.
