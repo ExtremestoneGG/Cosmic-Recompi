@@ -7,6 +7,22 @@ using System.Text;
 
 namespace CosmicRecompi {
     internal static class InstalledGame {
+#if COSMIC_GPU_DIAGNOSTICS
+        // Experimental package only. Keep each comparison to one changed path;
+        // the normal release never reads this file or changes its defaults.
+        internal static void ApplyGraphicsDiagnosticProfile(string root, ProcessStartInfo start, string diagnostics) {
+            string profilePath=Path.Combine(root,"graphics-diagnostic-profile.txt");
+            string profile=File.Exists(profilePath)?File.ReadAllText(profilePath).Trim():"gpu-bounds";
+            switch(profile) {
+                case "standard": break;
+                case "gpu-bounds": start.EnvironmentVariables["BEN10_EDRAM_BOUNDS"]="false"; break;
+                case "viewport": start.EnvironmentVariables["BEN10_INTEL_VIEWPORT"]="false"; break;
+                case "stencil": start.EnvironmentVariables["BEN10_INTEL_STENCIL"]="false"; break;
+                default: throw new IOException("Unknown graphics diagnostic profile. Use standard, gpu-bounds, viewport or stencil.");
+            }
+            File.AppendAllText(diagnostics,DateTime.UtcNow.ToString("o")+" Experimental graphics profile="+profile+"; RTX 4060 validation pending; no FPS gain established."+Environment.NewLine);
+        }
+#endif
         internal static string LauncherLog(string root) {
             try {
                 string logs=Path.Combine(Installation(root),"logs");Directory.CreateDirectory(logs);
@@ -116,7 +132,6 @@ namespace CosmicRecompi {
             foreach (DictionaryEntry variable in Environment.GetEnvironmentVariables())
                 if (((string)variable.Key).StartsWith("BEN10_", StringComparison.OrdinalIgnoreCase)) start.EnvironmentVariables.Remove((string)variable.Key);
             start.EnvironmentVariables["BEN10_PORTABLE_ROOT"] = folder;
-            start.EnvironmentVariables["REX_NATIVE_RESOLVE_TEXTURE_COPY"] = "true";
             if (returnToLauncherEvent != null)
                 start.EnvironmentVariables["BEN10_RETURN_TO_LAUNCHER_EVENT"] = returnToLauncherEvent;
             start.EnvironmentVariables["BEN10_GRAPHICS_BACKEND"] = "d3d12";
@@ -137,6 +152,9 @@ namespace CosmicRecompi {
             foreach (string flag in new string[] { "RTV_INITIAL_DEPTH_ZERO", "RTV_UNSIGNED_TEXTURES", "RTV_ZERO_LOD", "REUSE_UPLOADS", "DIRECT_RESOLVE", "ESTIMATE_DRAW_EXTENT", "IDLE_NOTIFICATION_PACING" })
                 start.EnvironmentVariables["BEN10_" + flag] = "1";
             if (!uncapped && frameLimit != "unlimited") start.EnvironmentVariables["BEN10_FRAME_PACING_HZ"] = frameLimit;
+#if COSMIC_GPU_DIAGNOSTICS
+            ApplyGraphicsDiagnosticProfile(folder,start,diagnostics);
+#endif
             string temp = Path.Combine(folder, "temp"); Directory.CreateDirectory(temp);
             start.EnvironmentVariables["TEMP"] = temp; start.EnvironmentVariables["TMP"] = temp;
             if (configureProcess != null) configureProcess(start);
