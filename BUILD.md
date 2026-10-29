@@ -4,6 +4,8 @@
 
 # Building Cosmic Recomp
 
+Start with the detailed [contributor and coding-agent runbook](docs/CONTRIBUTOR_BUILD_RUNBOOK.md). It separates ISO import, native compilation and coherent runtime staging, with stop rules for build failures. A clean-machine full rebuild remains unverified.
+
 ## Source layout and SDK identity
 
 `launcher/native/` contains the standalone Dear ImGui/SDL3/OpenGL frontend. `launcher/NativeBridge.cs`, `InstalledGame.cs`, `IsoImage.cs` and `GameMenuPatch.cs` implement its process bridge, importer and local menu transformation. Legacy Windows Forms sources are retained for reference, not used by the new frontend. `native-rex/src/` contains title integration, frame pacing, diagnostics and original-game video menu callbacks. Generated game C++ belongs only in ignored `native-rex/generated/default`.
@@ -63,17 +65,13 @@ git clone https://github.com/ExtremestoneGG/recomp-ui.git third_party/full-emera
 git -C third_party/full-emerald-ui checkout 047bc82d8679e96d1dec19ce2cd8ab677003465f
 cmake -S launcher/native -B build/frontend -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/frontend --parallel 2
-$root = (Get-Location).Path
-$csc = "$env:WINDIR/Microsoft.NET/Framework64/v4.0.30319/csc.exe"
-& $csc /nologo /optimize+ /target:winexe /platform:x64 /reference:System.Windows.Forms.dll `
-  "/out:$root/build/frontend/CosmicBridge.exe" `
-  "$root/launcher/NativeBridge.cs" "$root/launcher/InstalledGame.cs" `
-  "$root/launcher/IsoImage.cs" "$root/launcher/GameMenuPatch.cs"
+python tools/build_release_bridge.py --hero-time
+# Matching bridge: build/hero-time-release/CosmicBridge.exe
 ```
 
 Use an x64 MSVC developer environment. CMake builds a separate SDL3 copy with OpenGL enabled; the game SDK's SDL configuration is not changed. Keep the dependency's MIT/ImGui/stb notices and SDL license with redistributions. A GIF background is optional and not provided.
 
-The bridge requires the matching native executable and `runtime/pc-menu-api.txt` containing `1`, plus the runtime hash manifest. Do not mix this frontend with the first test release's older native executable.
+The bridge requires the matching native executable and `runtime/pc-menu-api.txt` containing `7`, plus the runtime hash manifest. Do not mix this frontend with the first test release's older native executable.
 
 ## Launcher and importer tests
 
@@ -149,6 +147,7 @@ Pop-Location
 
 # Disponibilize os recursos da sua cópia em originals/ antes do codegen.
 & "$root/toolchain/rexglue-sdk/bin/rexglue.exe" codegen native-rex/ben10_manifest.toml
+python tools/apply_game_integration.py --generated native-rex/generated/default
 cmake -S native-rex -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release `
   -DCMAKE_CXX_COMPILER=clang-cl "-DCMAKE_PREFIX_PATH=$root/toolchain/rexglue-sdk"
 cmake --build build/native --parallel 2
@@ -178,13 +177,13 @@ Nunca envie ao Git arquivos de `originals`, `installation`, fontes PPC geradas, 
 Para recompilar a partir do arquivo completo de fontes do SDK, use `CosmicRecomp-v0.4.0-alpha.4-corresponding-source.zip`. Ele corrige um header de shader próprio ausente no pacote anterior, sem alterar os bytes do shader ou os binários do jogo. Após extrair, execute `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` na raiz do arquivo extraído. O diff já está aplicado nesse pacote. Os includes foram verificados; uma compilação completa em máquina limpa continua sem verificação.
 
 
-## Alpha profile, v0.4.0-alpha.2
+## Alpha 4 bridge and integration profile
 
-The public bridge uses `COSMIC_NATIVE_SETTINGS;COSMIC_ALIEN_STREAMS`. Run `python tools/build_release_bridge.py` to produce `build/settings-release/CosmicBridge.exe`; `tools/build_launcher.ps1` copies this matching profile beside the frontend. It embeds only the project's authored VM program, generated with `authored()`. It does not embed original game scripts. `--rath-disabled` reproduces the older exclusion profile and is not the Alpha default.
+The Alpha 4 bridge uses `COSMIC_NATIVE_SETTINGS;COSMIC_ALIEN_STREAMS;COSMIC_HERO_TIME;COSMIC_PRELOAD_ALIENS`. Run `python tools/build_release_bridge.py --hero-time` to produce `build/hero-time-release/CosmicBridge.exe`; `tools/build_launcher.ps1` copies this matching profile beside the frontend. It embeds only authored VM programs, not original game scripts. `--rath-disabled` reproduces an older exclusion profile and is not the Alpha default. `--gpu-diagnostics` is reserved for the experimental GPU test build.
 
 Use the pinned SDK plus the single `sdk-patches/rex-sdk-local.diff`, including `Ben10ConfigurePresentation` in the SDK SDL window translation unit. In the corresponding-source archive the diff is already applied; do not apply it again. Run `python prepare_sdk_source.py --sdk rexglue-sdk --consumer consumer` to resolve the consumer include placeholders. The presentation addition uses the runtime's SDL instance, adds no data members or virtual methods, and makes no GPU algorithm change. SDK/kernel/GPU source origins and revisions remain in PROVENANCE.json and SOURCES.md.
 
-After local game codegen, `tools/apply_game_integration.py --generated native-rex/generated/default` applies the 64 MiB DB File Heap request and the RT filter in the original input wrapper. These are idempotent title-specific transformations of locally generated code. Generated files must not enter Git or source archives.
+After local game codegen, `python tools/apply_game_integration.py --generated native-rex/generated/default` applies the 96 MiB DB File Heap request, expanded callback/storage integration, input filter and retained CPU polling changes. These are idempotent title-specific transformations of locally generated code. Generated files must not enter Git or source archives.
 
 The packaged runtime requires `runtime/pc-menu-api.txt` containing `7` and a `runtime/SHA256SUMS.txt` manifest covering every runtime file. Build the game and the SDK together before staging them; never change only the API marker on an older runtime. Build and runtime validation remain separate requirements. A complete clean-machine rebuild has not been verified.
 
@@ -192,7 +191,7 @@ Run `tools/test_all_aliens_patch.py --native-settings`, the importer/menu suites
 
 ### Português
 
-O perfil Alpha usa `COSMIC_NATIVE_SETTINGS;COSMIC_ALIEN_STREAMS`, API nativa 7 e ponte em `build/settings-release`. O diff único do SDK inclui a extensão SDL de apresentação; o arquivo de fontes já vem com ele aplicado. Execute prepare_sdk_source.py para resolver os includes relocáveis e siga os comandos acima. O SDK continua fornecendo kernel, renderizador e áudio. Código gerado do jogo e dados pessoais não entram no repositório. Os testes locais não comprovam uma compilação completa em máquina limpa.
+O perfil Alpha 4 usa `--hero-time`, API nativa 7 e ponte em `build/hero-time-release`. O diff único do SDK inclui a extensão SDL de apresentação; o arquivo de fontes já vem com ele aplicado. Execute prepare_sdk_source.py para resolver os includes relocáveis e siga os comandos acima. O SDK continua fornecendo kernel, renderizador e áudio. Código gerado do jogo e dados pessoais não entram no repositório. Os testes locais não comprovam uma compilação completa em máquina limpa. O [guia detalhado em inglês](docs/CONTRIBUTOR_BUILD_RUNBOOK.md) explica as etapas e como evitar ciclos de recompilação sem diagnóstico.
 
 ## Hero Time Alpha
 

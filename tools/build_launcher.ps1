@@ -13,8 +13,8 @@ if (-not (Test-Path -LiteralPath "$root\third_party\full-emerald-ui\src\common\l
 if ($LASTEXITCODE -ne 0) { throw 'Frontend configuration failed.' }
 & cmake --build $out --parallel 2
 if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
-& python "$root\tools\build_release_bridge.py"
+& python "$root\tools\build_release_bridge.py" --hero-time
 if ($LASTEXITCODE -ne 0) { throw 'Corrected release bridge build failed.' }
-Copy-Item -LiteralPath "$root\build\settings-release\CosmicBridge.exe" -Destination "$out\CosmicBridge.exe" -Force
+Copy-Item -LiteralPath "$root\build\hero-time-release\CosmicBridge.exe" -Destination "$out\CosmicBridge.exe" -Force
 if ($LASTEXITCODE -ne 0) { throw 'Process bridge build failed.' }
 Write-Output "Built CosmicRecomp.exe and CosmicBridge.exe in $out"
