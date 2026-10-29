@@ -12,20 +12,25 @@ namespace CosmicRecompi {
         // the normal release never reads this file or changes its defaults.
         internal static void ApplyGraphicsDiagnosticProfile(string root, ProcessStartInfo start, string diagnostics) {
             string profilePath=Path.Combine(root,"graphics-diagnostic-profile.txt");
-            string profile=File.Exists(profilePath)?File.ReadAllText(profilePath).Trim():"measure-standard";
+            string profile=File.Exists(profilePath)?File.ReadAllText(profilePath).Trim():"measure-phases";
             switch(profile) {
-                case "standard": case "measure-standard": break;
+                case "standard": case "measure-standard": case "measure-phases": break;
                 case "gpu-bounds": case "measure-gpu-bounds": start.EnvironmentVariables["BEN10_EDRAM_BOUNDS"]="false"; break;
                 case "viewport": start.EnvironmentVariables["BEN10_INTEL_VIEWPORT"]="false"; break;
                 case "stencil": start.EnvironmentVariables["BEN10_INTEL_STENCIL"]="false"; break;
-                default: throw new IOException("Unknown graphics diagnostic profile. Use standard, gpu-bounds, viewport, stencil, measure-standard or measure-gpu-bounds.");
+                default: throw new IOException("Unknown graphics diagnostic profile. Use standard, gpu-bounds, viewport, stencil, measure-standard, measure-gpu-bounds or measure-phases.");
             }
-            if(profile=="measure-standard" || profile=="measure-gpu-bounds") {
+            if(profile=="measure-standard" || profile=="measure-gpu-bounds" || profile=="measure-phases") {
                 string logs=Path.GetDirectoryName(diagnostics);
                 Directory.CreateDirectory(logs);
                 string timing=Path.Combine(logs,"gpu-timing-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")+".jsonl");
                 start.EnvironmentVariables["BEN10_D3D12_PROFILE"]=timing;
                 File.AppendAllText(diagnostics,"GPU timing output: "+timing+"; diagnostic query overhead possible; scopes overlap and must not be summed."+Environment.NewLine);
+                if(profile=="measure-phases") {
+                    string phases=Path.Combine(logs,"cpu-draw-phases-"+Guid.NewGuid().ToString("N")+".jsonl");
+                    start.EnvironmentVariables["BEN10_CPU_DRAW_PHASES"]=phases;
+                    File.AppendAllText(diagnostics,"CPU draw phase output: "+phases+"; sequential wall time including driver calls; instrumentation overhead possible."+Environment.NewLine);
+                }
             }
             File.AppendAllText(diagnostics,DateTime.UtcNow.ToString("o")+" Experimental graphics profile="+profile+"; RTX 4060 validation pending; no FPS gain established."+Environment.NewLine);
         }

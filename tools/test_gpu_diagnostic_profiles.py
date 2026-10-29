@@ -25,13 +25,16 @@ class Driver {
   InstalledGame.ApplyGraphicsDiagnosticProfile(root,defaults,log);
   foreach(string key in keys)if(defaults.EnvironmentVariables[key]!=null)return 21;
   if(String.IsNullOrEmpty(defaults.EnvironmentVariables["BEN10_D3D12_PROFILE"]))return 24;
-  foreach(string profile in new string[]{"measure-standard","measure-gpu-bounds"}) {
+  if(String.IsNullOrEmpty(defaults.EnvironmentVariables["BEN10_CPU_DRAW_PHASES"]))return 25;
+  foreach(string profile in new string[]{"measure-standard","measure-gpu-bounds","measure-phases"}) {
    File.WriteAllText(file,profile);var measured=new ProcessStartInfo();
    measured.EnvironmentVariables.Remove("BEN10_EDRAM_BOUNDS");
    InstalledGame.ApplyGraphicsDiagnosticProfile(root,measured,log);
    if(measured.EnvironmentVariables["BEN10_EDRAM_BOUNDS"]!=(profile=="measure-gpu-bounds"?"false":null))return 22;
    string output=measured.EnvironmentVariables["BEN10_D3D12_PROFILE"];
    if(String.IsNullOrEmpty(output) || Path.GetDirectoryName(output)!=root || Path.GetExtension(output)!=".jsonl")return 23;
+   string phases=measured.EnvironmentVariables["BEN10_CPU_DRAW_PHASES"];
+   if(profile=="measure-phases" && (String.IsNullOrEmpty(phases) || Path.GetDirectoryName(phases)!=root))return 26;
   }
   Console.WriteLine("Profile isolation, experimental default and invalid-profile rejection passed."); return 0;
  }

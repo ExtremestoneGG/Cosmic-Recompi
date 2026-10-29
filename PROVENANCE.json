@@ -3,7 +3,7 @@
     "origin": "https://github.com/rexglue/rexglue-sdk.git",
     "commit": "c94f5ebdcb3c9d1a460ca48e04f9758448f8d518",
     "local_patch": "sdk-patches/rex-sdk-local.diff",
-    "patch_sha256": "a287624a829a05856dfc0752e8eb3e3446497e497f4cd41c496643535da8df63",
+    "patch_sha256": "4385fe0705edec481c8d578c8de4ac9decc8fa60916551a81c7fdf883c6ff06d",
     "diagnostic_include_paths": "Relocatable @COSMIC_CONSUMER@/ placeholder",
     "presentation_extension": "SDK SDL window unit: live output size and exclusive display mode; no GPU algorithm change"
   },
@@ -372,5 +372,13 @@
     "private_test_room_excluded": true,
     "full_campaign_verified": false,
     "installer": "See the published Alpha 4 package-validation asset for post-packaging selected-folder, save-preservation and runtime-hash checks."
+  },
+  "experimental_cpu_phases": {
+    "version": "v0.4.0-alpha.4-gpu-test.3",
+    "bridge_sha256": "f4e8cfc1509423a52adb8c85273334c9e1a3e92ce219fa80ba1ad4e42193c08f",
+    "gpu_sha256": "5fbe03120ca6ca9efc2aff86e1ec5b2d4b4772ff4d351fa70a63289163632b38",
+    "default_profile": "measure-phases",
+    "optimization": false,
+    "rtx4060_phase_results_pending": true
   }
 }
