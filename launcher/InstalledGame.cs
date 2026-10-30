@@ -25,6 +25,11 @@ namespace CosmicRecompi {
                 Directory.CreateDirectory(logs);
                 string timing=Path.Combine(logs,"gpu-timing-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")+".jsonl");
                 start.EnvironmentVariables["BEN10_D3D12_PROFILE"]=timing;
+                string cadence=Path.Combine(logs,"frame-cadence-"+Guid.NewGuid().ToString("N")+".jsonl");
+                string vblank=Path.Combine(logs,"vblank-"+Guid.NewGuid().ToString("N")+".jsonl");
+                start.EnvironmentVariables["BEN10_FRAME_CADENCE_LOG"]=cadence;
+                start.EnvironmentVariables["BEN10_VBLANK_AUDIT"]=vblank;
+                File.AppendAllText(diagnostics,"Cadence output: "+cadence+"; guest vblank output: "+vblank+"; passive timing, no scheduling override."+Environment.NewLine);
                 File.AppendAllText(diagnostics,"GPU timing output: "+timing+"; diagnostic query overhead possible; scopes overlap and must not be summed."+Environment.NewLine);
                 if(profile=="measure-phases") {
                     string phases=Path.Combine(logs,"cpu-draw-phases-"+Guid.NewGuid().ToString("N")+".jsonl");

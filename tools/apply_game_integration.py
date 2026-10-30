@@ -29,6 +29,23 @@ for name in ['sub_821ADC40','sub_82473060']:
  if body.count(old)!=1:raise RuntimeError('Unexpected generated body for '+name)
  body=body.replace(old,new);p.write_text(text[:start]+body+text[end:]);changes+=1
 
+# The frame hook registers native menus and applies the selected frame cap.
+# Fresh codegen does not contain this authored integration automatically.
+for p in args.generated.glob('*.cpp'):
+    text=p.read_text()
+    if 'DEFINE_REX_FUNC(sub_8248B2F0) {' not in text:continue
+    start=text.index('DEFINE_REX_FUNC(sub_8248B2F0) {')
+    end=text.find('\nDEFINE_REX_FUNC(',start+1)
+    if end<0:end=len(text)
+    body=text[start:end]
+    if 'Ben10FrameSubmitted();' not in body:
+        needle='__imp__VdSwap(ctx, base);'
+        if body.count(needle)!=1:raise RuntimeError('Unexpected frame submission hook location')
+        body=body.replace(needle,needle+'\n\tBen10FrameSubmitted();')
+        p.write_text(text[:start]+body+text[end:]);changes+=1
+    break
+else:raise RuntimeError('Frame submission function missing from generated input')
+
 from apply_callback_capacity import apply as expand_callbacks
 from apply_resource_diagnostics import apply as add_diagnostics
 changes+=expand_callbacks(args.generated)

@@ -1,4 +1,4 @@
-# GPU test 4 — detailed CPU graphics diagnosis
+# GPU test 4 â€” detailed CPU graphics diagnosis
 
 **Experimental diagnostic; no performance fix or FPS gain is claimed.**
 Test 2 captured a slow/high-draw subset at about 15.48 FPS, with approximately
@@ -40,7 +40,7 @@ The rejected local vertex-batching experiment is **not** included.
    Keep external FPS limiters disabled for this diagnostic. No driver changes
    or tool installation are needed. Known camera flicker above 30 FPS is not
    fixed by this test build.
-6. Load the **same gameplay area where you previously saw 15–20 FPS**. A title
+6. Load the **same gameplay area where you previously saw 15â€“20 FPS**. A title
    screen, menu, loading screen or cutscene is not a useful substitute.
 7. Leave the character and camera still in that slow area for **at least
    30 seconds**. The timing files update automatically, roughly every five
@@ -99,12 +99,18 @@ SDK. Run the archive include relocation helper; do not apply the patch twice.
 Build the bridge with `--hero-time --gpu-diagnostics`. Normal builds omit the
 diagnostic flag and do not enable the collectors.
 
-## Português
+## PortuguÃªs
 
-Diagnóstico experimental, sem ganho confirmado. Os dados apontaram custo alto
-na CPU gráfica; agora medimos cada etapa para localizar a causa. Instale
+DiagnÃ³stico experimental, sem ganho confirmado. Os dados apontaram custo alto
+na CPU grÃ¡fica; agora medimos cada etapa para localizar a causa. Instale
 separadamente, teste 30 segundos na mesma cena lenta em 720p e envie a pasta
 `game-data/logs`, incluindo `cpu-draw-phases-*.jsonl` e `gpu-timing-*.jsonl`.
 Se houver arquivo de perfil antigo, use `measure-phases`. A candidata de
-agrupamento de vértices foi rejeitada localmente e não faz parte deste pacote.
-Não há redução de qualidade ou alteração dos comandos gráficos.
+agrupamento de vÃ©rtices foi rejeitada localmente e nÃ£o faz parte deste pacote.
+NÃ£o hÃ¡ reduÃ§Ã£o de qualidade ou alteraÃ§Ã£o dos comandos grÃ¡ficos.
+
+## Follow-up: apparent 15 FPS cadence lock
+
+GPU test 5 adds passive limiter and guest-vblank attribution. See
+[the test 5 instructions](CADENCE_DIAGNOSTICS.md). It does not claim a fix and
+does not change the guest clock, original rendering or limiter algorithm.

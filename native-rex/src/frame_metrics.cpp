@@ -1,3 +1,4 @@
+#include "frame_cadence_audit.h"
 #include "frame_metrics.h"
 #include "frame_pacing_probe.h"
 #include "pc_menu_bridge.h"
@@ -18,8 +19,12 @@ extern "C" void Ben10FilterGameInput(uint32_t status,uint32_t guest_state,uint8_
      base[guest_state+6]>30)base[guest_state+7]=0;
 }
 extern "C" void Ben10FrameSubmitted() {
+  auto& audit=ben10_cadence::audit;
+  const auto entry=audit.output?ben10_cadence::Clock::now():ben10_cadence::Clock::time_point{};
   ben10_pc_menu::OnFrame();
+  const auto before_wait=audit.output?ben10_cadence::Clock::now():entry;
   ben10_pacing_probe::pacer.Wait();
+  if(audit.output)audit.Record(entry,before_wait,ben10_cadence::Clock::now(),ben10_pacing_probe::pacer.rate());
   const auto now=Clock::now();
   std::lock_guard guard(frame_mutex);
   if(previous!=Clock::time_point{}) {
