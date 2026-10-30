@@ -15,6 +15,13 @@ Latest update: [animation and lever crash fixes](RELEASE_NOTES.md), including a 
 
 Latest update: **boss-transition stability, proportional Hero Time and accumulated native-quality optimizations**. [Details](RELEASE_NOTES.md).
 
+**Contributors and coding agents:** start with the [current-source handoff](docs/AI_HANDOFF.md)
+and [build runbook](docs/CONTRIBUTOR_BUILD_RUNBOOK.md). All Aliens and Hero Time
+are authored source features in this repository. After the patched SDK setup,
+`tools/build_development.ps1` builds and stages the current development app;
+it does not download an older release runtime. Full clean-machine reproduction
+remains unverified.
+
 ## Alpha v0.4.0-alpha.4 — stability and performance
 
 - One portable EXE: select your ISO, wait for acceptance, then **Prepare game**. Import uses a precompiled native runtime; it does not compile C++ on the player's PC.

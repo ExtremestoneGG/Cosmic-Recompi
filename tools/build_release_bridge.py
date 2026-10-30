@@ -5,6 +5,9 @@ from prepare_all_aliens_candidate import ROOT,authored,encode
 
 parser=argparse.ArgumentParser();parser.add_argument('--rath-disabled',action='store_true');parser.add_argument('--hero-time',action='store_true');parser.add_argument('--gpu-diagnostics',action='store_true');args=parser.parse_args()
 assert not (args.rath_disabled and args.hero_time)
+# The current contributor default must include the released authored features.
+# Keep --hero-time accepted for existing reproducible release commands.
+if not args.rath_disabled:args.hero_time=True
 assert not args.gpu_diagnostics or args.hero_time,'GPU diagnostics require the matching Hero Time API 7 profile'
 out=ROOT/('build/gpu-diagnostic-release' if args.gpu_diagnostics else 'build/rath-disabled-release' if args.rath_disabled else 'build/hero-time-release' if args.hero_time else 'build/settings-release');out.mkdir(parents=True,exist_ok=True)
 program=out/'AllAliensProgram.bin';program.write_bytes(encode(authored(disable_rath=args.rath_disabled,preload_resources=args.hero_time)))

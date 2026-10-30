@@ -1,3 +1,4 @@
+param([string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot
 $out = Join-Path $root 'build\launcher'
@@ -13,7 +14,7 @@ if (-not (Test-Path -LiteralPath "$root\third_party\full-emerald-ui\src\common\l
 if ($LASTEXITCODE -ne 0) { throw 'Frontend configuration failed.' }
 & cmake --build $out --parallel 2
 if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
-& python "$root\tools\build_release_bridge.py" --hero-time
+& $Python -B "$root\tools\build_release_bridge.py" --hero-time
 if ($LASTEXITCODE -ne 0) { throw 'Corrected release bridge build failed.' }
 Copy-Item -LiteralPath "$root\build\hero-time-release\CosmicBridge.exe" -Destination "$out\CosmicBridge.exe" -Force
 if ($LASTEXITCODE -ne 0) { throw 'Process bridge build failed.' }

@@ -117,6 +117,11 @@ different-region XEX. Keep the original ISO intact.
 
 ## 5. Generate and integrate the title
 
+For the combined current-source workflow after the setup above, use
+`./tools/build_development.ps1 -Python python -Regenerate`. It performs sections
+5–8 and stages `build/development-app`. Read `AI_HANDOFF.md` and root `AGENTS.md`
+before modifying the project. The commands below remain the manual equivalent.
+
 From the consumer root:
 
 ```powershell
